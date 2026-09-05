@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output and generated types
+build/
+dist/
+.react-router/
+coverage/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and operating system files
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
