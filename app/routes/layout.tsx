@@ -10,11 +10,19 @@ export default function SiteLayout() {
   const [initError, setInitError] = useState(false);
 
   useEffect(() => {
+    let active = true;
     const instance = new PublicClientApplication(msalConfig);
     instance
       .initialize()
-      .then(() => setMsalInstance(instance))
-      .catch(() => setInitError(true));
+      .then(() => {
+        if (active) setMsalInstance(instance);
+      })
+      .catch(() => {
+        if (active) setInitError(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (initError) {

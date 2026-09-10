@@ -16,7 +16,8 @@ export function LoginForm() {
     try {
       await instance.loginPopup({ scopes: [apiScope] });
       navigate("/reservas");
-    } catch {
+    } catch (err) {
+      console.error(err);
       setError("No se pudo iniciar sesión. Intenta de nuevo.");
     } finally {
       setLoading(false);

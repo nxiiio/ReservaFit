@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
+import { InteractionStatus } from "@azure/msal-browser";
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { apiScope } from "../../lib/msal-config";
 
@@ -7,7 +8,7 @@ type ApiMe = { name?: string; preferred_username?: string; oid?: string };
 
 export function ReservasPanel() {
   const isAuthenticated = useIsAuthenticated();
-  const { instance, accounts } = useMsal();
+  const { instance, accounts, inProgress } = useMsal();
   const [apiResult, setApiResult] = useState<ApiMe | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -23,7 +24,8 @@ export function ReservasPanel() {
         try {
           const result = await instance.acquireTokenSilent({ scopes: [apiScope], account });
           accessToken = result.accessToken;
-        } catch {
+        } catch (err) {
+          console.error(err);
           const result = await instance.acquireTokenPopup({ scopes: [apiScope], account });
           accessToken = result.accessToken;
         }
@@ -34,7 +36,8 @@ export function ReservasPanel() {
         if (!response.ok) throw new Error(`status ${response.status}`);
         const data = (await response.json()) as ApiMe;
         if (!cancelled) setApiResult(data);
-      } catch {
+      } catch (err) {
+        console.error(err);
         if (!cancelled) setApiError("No se pudo conectar con el backend todavía.");
       }
     }
@@ -45,6 +48,7 @@ export function ReservasPanel() {
     };
   }, [isAuthenticated, accounts, instance]);
 
+  if (inProgress === InteractionStatus.Startup) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const account = accounts[0];
