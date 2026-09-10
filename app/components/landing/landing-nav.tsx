@@ -11,8 +11,7 @@ export function LandingNav() {
           <a href="#como-funciona" className="py-1 hover:underline underline-offset-4">Cómo funciona</a>
         </div>
         <div className="flex items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
-          <Link to="/login" className="py-2 hover:underline underline-offset-4">Ingresar</Link>
-          <Link to="/register" className="rounded-lg bg-ink px-3 py-3 text-white transition-colors hover:bg-ink/85 sm:px-5">Crear cuenta</Link>
+          <Link to="/login" className="rounded-lg bg-ink px-3 py-3 text-white transition-colors hover:bg-ink/85 sm:px-5">Ingresar</Link>
         </div>
       </nav>
     </header>

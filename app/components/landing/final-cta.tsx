@@ -10,7 +10,7 @@ export function FinalCta() {
           <h2 id="cta-title" className="font-display text-[clamp(2rem,8vw,3rem)] leading-none font-semibold uppercase sm:text-6xl">Hazle espacio<br />a tu entrenamiento.</h2>
           <p className="mt-5 max-w-md text-sm leading-6 text-paper/75">Tu comunidad se mueve. Encuentra tu lugar en ella.</p>
         </div>
-        <Link to="/register" className="inline-flex shrink-0 items-center gap-8 rounded-lg bg-accent px-6 py-4 text-sm font-bold text-ink transition-colors hover:bg-[#ff8355]">Crear mi cuenta <ArrowIcon /></Link>
+        <Link to="/login" className="inline-flex shrink-0 items-center gap-8 rounded-lg bg-accent px-6 py-4 text-sm font-bold text-ink transition-colors hover:bg-[#ff8355]">Empezar ahora <ArrowIcon /></Link>
       </div>
     </section>
   );
