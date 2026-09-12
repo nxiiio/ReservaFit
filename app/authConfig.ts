@@ -33,4 +33,9 @@ export const msalConfig: Configuration = {
 
 export const loginRequest = {
     scopes: ["User.Read"],
+    // Always show Microsoft's account picker instead of silently reusing the
+    // browser's existing SSO session — otherwise, since logout only clears
+    // ReservaFit's local session (see reservas-panel.tsx), users could never
+    // switch to a different Microsoft account.
+    prompt: "select_account",
 };

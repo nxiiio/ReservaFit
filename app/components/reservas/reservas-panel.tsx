@@ -7,7 +7,16 @@ export function ReservasPanel() {
   const isBusy = inProgress !== InteractionStatus.None;
 
   function handleLogout() {
-    instance.logoutRedirect().catch(console.error);
+    // clearCache() only wipes the local MSAL cache — unlike logoutRedirect(),
+    // it never navigates to Microsoft's logout endpoint, so it doesn't end
+    // the browser's Microsoft SSO session (Outlook, Teams, etc. stay logged in).
+    // It also doesn't fire an MSAL event, so MsalProvider's React state (and
+    // therefore the /reservas guard) would never notice the account is gone —
+    // a hard navigation forces a fresh read of the (now empty) cache on load.
+    instance
+      .clearCache({ account })
+      .then(() => window.location.assign("/login"))
+      .catch(console.error);
   }
 
   return (
