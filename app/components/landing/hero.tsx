@@ -12,7 +12,7 @@ export function Hero() {
           Encuentra tu lugar para entrenar, elige un horario y reserva. Así de simple. Así de cerca.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-5">
-          <Link to="/login" className="inline-flex items-center gap-6 rounded-lg bg-accent px-6 py-4 text-sm font-bold transition-colors hover:bg-[#f15d28]">
+          <Link to="/register" className="inline-flex items-center gap-6 rounded-lg bg-accent px-6 py-4 text-sm font-bold transition-colors hover:bg-[#f15d28]">
             Empezar ahora <ArrowIcon />
           </Link>
           <a href="#como-funciona" className="inline-flex items-center gap-2 py-3 text-sm font-semibold underline underline-offset-4">

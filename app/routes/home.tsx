@@ -4,7 +4,6 @@ import { Hero } from "../components/landing/hero";
 import { Features } from "../components/landing/features";
 import { HowItWorks } from "../components/landing/how-it-works";
 import { FinalCta } from "../components/landing/final-cta";
-import { LandingFooter } from "../components/landing/landing-footer";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -30,7 +29,6 @@ export default function Home() {
         <HowItWorks />
         <FinalCta />
       </main>
-      <LandingFooter />
     </>
   );
 }
