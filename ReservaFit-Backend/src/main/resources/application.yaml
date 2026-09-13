@@ -1,9 +1,19 @@
 spring:
+  output:
+    ansi:
+      enabled: always
   application:
     name: ReservaFit-Backend
-azure:
-  activedirectory:
-    tenant-id: 569ca4b8-5e33-460a-8759-2bc12cb2b1e0
-    client-id: f4a5103b-ae57-406d-85e1-eee64edbc4ac
-    application-id-uri: api://f4a5103b-ae57-406d-85e1-eee64edbc4ac
-    
+  cloud:
+    azure:
+      active-directory:
+        enabled: true
+        profile:
+          # spring-cloud-azure-starter-active-directory rejects the "consumers" alias
+          # outright for resource-server scenarios; use the resolved tenant GUID instead
+          # (confirmed earlier: Microsoft's /consumers/v2.0 discovery doc self-declares
+          # this as its issuer tenant).
+          tenant-id: 9188040d-6c67-4c5b-b112-36a304b66dad
+        credential:
+          client-id: f4a5103b-ae57-406d-85e1-eee64edbc4ac
+        app-id-uri: api://f4a5103b-ae57-406d-85e1-eee64edbc4ac
