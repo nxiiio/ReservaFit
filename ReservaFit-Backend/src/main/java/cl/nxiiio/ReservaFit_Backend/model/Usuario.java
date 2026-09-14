@@ -24,13 +24,16 @@ public class Usuario {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "microsoft_oid", length = 36, nullable = false, unique = true)
+    private String microsoftOid;
+
     @Column(name = "rut", length = 12, unique = true)
     private String rut;
 
     @Column(name = "nombre", length = 100, nullable = false)
     private String nombre;
 
-    @Column(name = "apellido", length = 100, nullable = false)
+    @Column(name = "apellido", length = 100)
     private String apellido;
 
     @Column(name = "fecha_nacimiento")

@@ -30,9 +30,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // Frontend (localhost:5173) and backend (localhost:8080) are different origins in dev,
-    // so the browser needs an explicit CORS allowance — without it, the preflight OPTIONS
-    // request itself gets rejected before the real GET with the bearer token is ever sent.
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

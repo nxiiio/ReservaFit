@@ -1,61 +1,13 @@
-import { useEffect, useState } from "react";
-import {
-  BrowserAuthError,
-  BrowserAuthErrorCodes,
-  InteractionRequiredAuthError,
-  InteractionStatus,
-} from "@azure/msal-browser";
+import { InteractionStatus } from "@azure/msal-browser";
 import { useMsal } from "@azure/msal-react";
-import { apiRequest } from "../../authConfig";
-
-type ApiHome = { timestamp: string; message: string };
+import { Navigate } from "react-router";
+import { useCurrentUser } from "../../lib/use-current-user";
 
 export function ReservasPanel() {
   const { instance, accounts, inProgress } = useMsal();
   const account = accounts[0];
   const isBusy = inProgress !== InteractionStatus.None;
-  const [apiResult, setApiResult] = useState<ApiHome | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!account) return;
-
-    let cancelled = false;
-
-    async function callApi() {
-      try {
-        let accessToken: string;
-        try {
-          const result = await instance.acquireTokenSilent({ ...apiRequest, account });
-          accessToken = result.accessToken;
-        } catch (err) {
-          const needsInteraction =
-            err instanceof InteractionRequiredAuthError ||
-            (err instanceof BrowserAuthError && err.errorCode === BrowserAuthErrorCodes.timedOut);
-          if (needsInteraction) {
-            await instance.acquireTokenRedirect(apiRequest);
-            return;
-          }
-          throw err;
-        }
-
-        const response = await fetch("http://localhost:8080/api/home", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!response.ok) throw new Error(`status ${response.status}`);
-        const data = (await response.json()) as ApiHome;
-        if (!cancelled) setApiResult(data);
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) setApiError("No se pudo conectar con el backend todavía.");
-      }
-    }
-
-    callApi();
-    return () => {
-      cancelled = true;
-    };
-  }, [account, instance]);
+  const { state, retry } = useCurrentUser(Boolean(account));
 
   function handleLogout() {
     // clearCache() only wipes the local MSAL cache — unlike logoutRedirect(),
@@ -70,21 +22,43 @@ export function ReservasPanel() {
       .catch(console.error);
   }
 
+  if (state.status === "ready" && !state.profile.profileComplete) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const profile = state.status === "ready" ? state.profile : null;
+
   return (
     <section className="mx-auto w-full max-w-2xl px-5 py-12 sm:px-8">
       <p className="mb-2 text-xs font-bold tracking-[0.16em] text-muted uppercase">Sesión iniciada</p>
       <h1 className="font-display text-4xl font-bold uppercase">
-        Ya estás verificado{account?.name ? `, ${account.name}` : ""}
+        Ya estás verificado{profile?.name ? `, ${profile.name}` : ""}
       </h1>
       <p className="mt-4 text-sm leading-6 text-muted">
-        Esta pantalla es un placeholder: todavía no hay funcionalidad de reservas, solo confirma que el login con Microsoft funciona de punta a punta.
+        Esta pantalla es un placeholder: todavía no hay funcionalidad de reservas, solo confirma que tu cuenta está registrada en ReservaFit.
       </p>
 
       <div className="mt-8 rounded-lg border border-line bg-white p-5 text-sm leading-6">
-        <p className="font-semibold">Respuesta del backend (/api/home)</p>
-        {apiResult && <pre className="mt-2 overflow-x-auto text-xs">{JSON.stringify(apiResult, null, 2)}</pre>}
-        {apiError && <p className="mt-2 text-[#b94018]">{apiError}</p>}
-        {!apiResult && !apiError && <p className="mt-2 text-muted">Conectando…</p>}
+        <p className="font-semibold">Tu perfil en el backend</p>
+        {profile && (
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+            <dt className="text-muted">Nombre</dt>
+            <dd>{profile.name ?? "—"}</dd>
+            <dt className="text-muted">Email</dt>
+            <dd>{profile.email ?? "—"}</dd>
+            <dt className="text-muted">Registrado</dt>
+            <dd>{profile.registeredAt ? new Date(profile.registeredAt).toLocaleString("es-CL") : "—"}</dd>
+          </dl>
+        )}
+        {state.status === "error" && (
+          <p className="mt-2 text-[#b94018]">
+            No se pudo conectar con el backend.{" "}
+            <button type="button" onClick={retry} className="cursor-pointer font-semibold underline">
+              Reintentar
+            </button>
+          </p>
+        )}
+        {state.status === "loading" && <p className="mt-2 text-muted">Conectando…</p>}
       </div>
 
       <button
