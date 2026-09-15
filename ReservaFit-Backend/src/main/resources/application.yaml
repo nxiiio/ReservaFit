@@ -4,6 +4,12 @@ spring:
       enabled: always
   application:
     name: ReservaFit-Backend
+  jpa:
+    # Run data.sql after Hibernate creates the schema
+    defer-datasource-initialization: true
+  sql:
+    init:
+      encoding: UTF-8
   cloud:
     azure:
       active-directory:
@@ -17,3 +23,7 @@ spring:
         credential:
           client-id: f4a5103b-ae57-406d-85e1-eee64edbc4ac
         app-id-uri: api://f4a5103b-ae57-406d-85e1-eee64edbc4ac
+        # Nimbus defaults are 500 ms; the first JWK set fetch from Microsoft often
+        # takes longer and fails with "I/O error ... : null" (a 500, not a 401)
+        jwt-connect-timeout: 5s
+        jwt-read-timeout: 5s

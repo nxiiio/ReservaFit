@@ -3,6 +3,8 @@ package cl.nxiiio.ReservaFit_Backend.model;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.CreationTimestamp;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,12 +21,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+// One active booking per slot and date. "activa" is TRUE while CONFIRMADA and NULL once
+// canceled: SQL UNIQUE treats NULLs as distinct, so canceled rows never block a re-booking.
 @Entity
 @Table(
     name = "reserva",
     uniqueConstraints = @UniqueConstraint(
         name = "uq_reserva_slot",
-        columnNames = {"gimnasio_id", "horario_id", "fecha"}
+        columnNames = {"gimnasio_id", "horario_id", "fecha", "activa"}
     )
 )
 @Getter
@@ -55,11 +59,12 @@ public class Reserva {
     @Column(name = "estado", length = 20)
     private EstadoReserva estado;
 
-    @Column(
-        name = "fecha_creacion",
-        insertable = false,
-        updatable = false,
-        columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-    )
+    // TRUE while confirmed, NULL when canceled (never FALSE); see uq_reserva_slot
+    @Column(name = "activa")
+    private Boolean activa;
+
+    // Set by Hibernate on insert, so it is available right after save()
+    @CreationTimestamp
+    @Column(name = "fecha_creacion", updatable = false)
     private LocalDateTime fechaCreacion;
 }

@@ -7,6 +7,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 import cl.nxiiio.ReservaFit_Backend.dto.CompleteProfileRequest;
+import cl.nxiiio.ReservaFit_Backend.exception.RutAlreadyRegisteredException;
+import cl.nxiiio.ReservaFit_Backend.exception.UserNotFoundException;
 import cl.nxiiio.ReservaFit_Backend.model.Usuario;
 import cl.nxiiio.ReservaFit_Backend.repository.UserRepository;
 import lombok.AllArgsConstructor;
@@ -50,9 +52,12 @@ public class UserService {
         }
     }
 
+    public Usuario findByOid(String oid) {
+        return repository.findByMicrosoftOid(oid).orElseThrow(UserNotFoundException::new);
+    }
+
     public Usuario completeProfile(Jwt jwt, CompleteProfileRequest request) {
-        Usuario user = repository.findByMicrosoftOid(jwt.getClaimAsString("oid"))
-                .orElseThrow(UserNotFoundException::new);
+        Usuario user = findByOid(jwt.getClaimAsString("oid"));
 
         user.setRut(request.getRut().toUpperCase(Locale.ROOT));
         user.setFechaNacimiento(request.getBirthDate());

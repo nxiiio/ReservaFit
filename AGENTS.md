@@ -20,8 +20,6 @@ Backend (`cd ReservaFit-Backend`, Java 25, Maven wrapper):
 - `./mvnw compile` / `./mvnw test` (single test: `./mvnw test -Dtest=ClassName#method`)
 - On Windows, stopping the Maven process does not always kill the forked JVM. If port 8080 is busy: `netstat -ano | grep :8080`, then `taskkill //PID <pid> //F`.
 
-`Dockerfile` is the React Router template default: it uses `npm ci` and `package-lock.json`, which this repo doesn't have. It won't build as is.
-
 ## Frontend architecture
 
 - React Router v8 framework mode with `ssr: false` (SPA mode). Routes are declared in `app/routes.ts`: a `routes/layout.tsx` layout (shared footer) wrapping `/`, `/login` and `/reservas`.
@@ -40,7 +38,7 @@ Backend (`cd ReservaFit-Backend`, Java 25, Maven wrapper):
 ## Backend architecture
 
 - Spring Boot **4.0.8**. Do not bump to 4.1.x without checking Spring Cloud Azure support. `spring-cloud-azure-starter-active-directory` has no version in `pom.xml`: it comes from the imported `spring-cloud-azure-dependencies` BOM (7.4.0). Don't pin the starter directly.
-- Resource server only: `config/SecurityConfig.java` requires a JWT on every request, plus a CORS bean allowing `http://localhost:5173`. The Azure starter auto-configures JWT validation (issuer, audience) from `application.yaml` (`spring.cloud.azure.active-directory.*`).
+- Resource server only: `config/SecurityConfig.java` requires a JWT on every request except `GET /api/gimnasios` and `/api/gimnasios/**` (the gym catalog is public), plus a CORS bean allowing `http://localhost:5173`. The Azure starter auto-configures JWT validation (issuer, audience) from `application.yaml` (`spring.cloud.azure.active-directory.*`).
 - `profile.tenant-id` must be the consumers tenant GUID `9188040d-6c67-4c5b-b112-36a304b66dad`. The starter rejects the `consumers` alias for resource servers. Tokens from the org tenant `569ca4b8-...` (such as client-credentials tokens) are correctly rejected with 401.
 - JPA entities in `model/` (`Usuario`, `Gimnasio`, `Horario`, `Reserva`, `EstadoReserva`) use Lombok and an in-memory H2 database. No repositories or services exist yet. `controller/TestAuthController.java` (`GET /api/home`) is a placeholder for testing auth.
 

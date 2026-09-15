@@ -1,4 +1,4 @@
-package cl.nxiiio.ReservaFit_Backend.service;
+package cl.nxiiio.ReservaFit_Backend.exception;
 
 public class RutAlreadyRegisteredException extends RuntimeException {
 

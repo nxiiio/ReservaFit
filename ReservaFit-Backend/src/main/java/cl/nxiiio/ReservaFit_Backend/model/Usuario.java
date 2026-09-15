@@ -42,9 +42,6 @@ public class Usuario {
     @Column(name = "email", length = 150, unique = true)
     private String email;
 
-    @Column(name = "password_hash", length = 255)
-    private String passwordHash;
-
     @Column(name = "num_tarjeta", length = 20)
     private String numTarjeta;
 

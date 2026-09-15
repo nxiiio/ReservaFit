@@ -16,7 +16,7 @@ import cl.nxiiio.ReservaFit_Backend.service.UserService;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/usuarios")
 public class UserController {
 
     private final UserService userService;
@@ -32,7 +32,7 @@ public class UserController {
         return ResponseEntity.status(status).body(UserResponse.from(result.getUser()));
     }
 
-    @PutMapping("/me/profile")
+    @PutMapping("/me/perfil")
     public UserResponse completeProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CompleteProfileRequest request) {
