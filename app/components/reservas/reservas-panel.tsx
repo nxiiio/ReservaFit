@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchGyms, type Gym } from "../../lib/api";
+import { fetchGyms } from "../../lib/api";
+import type { Gym } from "../../types/gym";
 import { GymCard } from "./gym-card";
 
 type GymsState = { status: "loading" } | { status: "error" } | { status: "ready"; gyms: Gym[] };

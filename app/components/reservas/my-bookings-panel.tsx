@@ -1,13 +1,10 @@
 import { useMsal } from "@azure/msal-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
-import {
-  acquireApiToken,
-  cancelBooking,
-  fetchMyBookings,
-  getErrorMessage,
-  type Booking,
-} from "../../lib/api";
+import { cancelBooking, fetchMyBookings } from "../../lib/api";
+import { getErrorMessage } from "../../lib/api-errors";
+import { acquireApiToken } from "../../lib/auth-token";
+import type { Booking } from "../../types/booking";
 import { formatLongDate, formatTime, todayIso } from "../../lib/dates";
 
 type BookingsState = { status: "loading" } | { status: "error" } | { status: "ready"; bookings: Booking[] };

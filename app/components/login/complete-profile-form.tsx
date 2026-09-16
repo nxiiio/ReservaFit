@@ -3,7 +3,10 @@ import { useMsal } from "@azure/msal-react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowIcon } from "../landing/arrow-icon";
-import { acquireApiToken, completeProfile, getFieldErrors, type UserProfile } from "../../lib/api";
+import { completeProfile } from "../../lib/api";
+import { getFieldErrors } from "../../lib/api-errors";
+import { acquireApiToken } from "../../lib/auth-token";
+import type { UserProfile } from "../../types/user";
 import { profileSchema, type ProfileData } from "../../lib/profile-schema";
 
 function inputClass(hasError: boolean) {

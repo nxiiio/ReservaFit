@@ -58,9 +58,11 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<SlotAvailabilityResponse> getAvailability(Long gymId, LocalDate date) {
+
         if (!gymRepository.existsById(gymId)) {
             throw new GymNotFoundException(gymId);
         }
+        
         Set<Long> taken = Set.copyOf(bookingRepository.findActiveScheduleIds(gymId, date));
         LocalDate today = LocalDate.now(clock);
         boolean dateBookable = !date.isBefore(today) && !date.isAfter(today.plusDays(MAX_DAYS_AHEAD));

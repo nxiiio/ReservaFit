@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMsal } from "@azure/msal-react";
-import { acquireApiToken, registerCurrentUser, type UserProfile } from "./api";
+import type { UserProfile } from "../types/user";
+import { registerCurrentUser } from "./api";
+import { acquireApiToken } from "./auth-token";
 
 export type CurrentUserState =
   | { status: "loading" }

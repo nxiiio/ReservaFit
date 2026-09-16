@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import type { Gym } from "../../lib/api";
+import type { Gym } from "../../types/gym";
 
 export function GymCard({ gym }: { gym: Gym }) {
   const [imageFailed, setImageFailed] = useState(false);

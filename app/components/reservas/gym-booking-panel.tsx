@@ -1,16 +1,10 @@
 import { useMsal } from "@azure/msal-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import {
-  acquireApiToken,
-  createBooking,
-  fetchAvailability,
-  fetchGym,
-  getErrorMessage,
-  getErrorStatus,
-  type Gym,
-  type SlotAvailability,
-} from "../../lib/api";
+import { createBooking, fetchAvailability, fetchGym } from "../../lib/api";
+import { getErrorMessage, getErrorStatus } from "../../lib/api-errors";
+import { acquireApiToken } from "../../lib/auth-token";
+import type { Gym, SlotAvailability } from "../../types/gym";
 import { addDaysIso, formatLongDate, formatTime, todayIso } from "../../lib/dates";
 
 const MAX_DAYS_AHEAD = 30;
