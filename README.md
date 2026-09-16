@@ -11,7 +11,7 @@ La autenticación usa cuentas personales de Microsoft (MSAL). El frontend obtien
 
 ## Requisitos
 
-- Node 20+ y **pnpm**
+- Node 20+ y **npm**
 - Java 25 (el backend incluye el wrapper de Maven)
 
 ## Variables de entorno
@@ -33,10 +33,8 @@ La configuración del backend vive en `ReservaFit-Backend/src/main/resources/app
 Frontend:
 
 ```bash
-pnpm install
-pnpm dev        # http://localhost:5173
-pnpm typecheck  # chequeo principal de correctitud
-pnpm build
+npm install
+npm run dev        # http://localhost:5173
 ```
 
 Backend:
@@ -89,5 +87,3 @@ ReservaFit-Backend/
   src/main/java/...     controller, service, model, dto, config, exception
   src/main/resources/   application.yaml, data.sql (datos iniciales)
 ```
-
-El detalle de convenciones y arquitectura está en `CLAUDE.md`.
