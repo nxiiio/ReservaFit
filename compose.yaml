@@ -1,0 +1,35 @@
+# Runs the whole stack: the SPA behind nginx and the Spring Boot API.
+#
+#   docker compose up --build
+#
+# Configuration comes from the .env file next to this one (copy .env.example).
+# The frontend is published on 5173 on purpose: that is the SPA redirect URI
+# registered in Azure, so the Docker stack needs no changes there.
+name: reservafit
+
+services:
+  backend:
+    build:
+      context: ./ReservaFit-Backend
+    environment:
+      AZURE_API_TENANT_ID: ${AZURE_API_TENANT_ID:-9188040d-6c67-4c5b-b112-36a304b66dad}
+      AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID:?AZURE_API_CLIENT_ID is required, see .env.example}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
+      SPRING_OUTPUT_ANSI_ENABLED: never
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: .
+      # VITE_* are inlined into the bundle at build time: changing them needs --build
+      args:
+        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:?VITE_AZURE_CLIENT_ID is required, see .env.example}
+        VITE_AZURE_REDIRECT_URI: ${VITE_AZURE_REDIRECT_URI:-http://localhost:${FRONTEND_PORT:-5173}}
+        VITE_API_SCOPE: ${VITE_API_SCOPE:?VITE_API_SCOPE is required, see .env.example}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
