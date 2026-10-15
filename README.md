@@ -5,7 +5,7 @@ MVP académico para reservar horarios de entrenamiento en gimnasios de barrio in
 Monorepo:
 
 - **Frontend** — React Router v8 (modo SPA) + Tailwind v4 + MSAL, en la raíz del repositorio.
-- **Backend** — Spring Boot 4 como resource server (Java 25, H2 en memoria), en `ReservaFit-Backend/`.
+- **Backend** — Microservicios Spring Boot 4 (Java 25) detrás de un API Gateway, con una base MySQL compartida, en `ReservaFit-Backend/`.
 
 La autenticación usa cuentas personales de Microsoft (MSAL). El frontend obtiene un access token y llama a la API con él.
 
@@ -13,6 +13,7 @@ La autenticación usa cuentas personales de Microsoft (MSAL). El frontend obtien
 
 - Node 20+ y **npm**
 - Java 25 (el backend incluye el wrapper de Maven)
+- Docker, para levantar MySQL
 
 ## Variables de entorno
 
@@ -26,7 +27,7 @@ VITE_API_SCOPE=api://<client id de la API>/access_as_user
 
 Las tres son obligatorias: `app/authConfig.ts` lanza un error al importarse si falta alguna.
 
-La configuración del backend vive en `ReservaFit-Backend/src/main/resources/application.yaml` (tenant, client id, audience). El tenant, el client id de la API y los orígenes CORS se pueden sobrescribir con variables de entorno (ver [Docker](#docker)); si no se definen, se usan los valores del `application.yaml`. El backend no lee el archivo `.env`.
+La configuración del backend vive en el `src/main/resources/application.yaml` de cada módulo (puerto, base de datos, y tenant, client id y audience de Azure). El tenant, el client id de la API, los orígenes CORS y la conexión a MySQL se pueden sobrescribir con variables de entorno (ver [Docker](#docker)); si no se definen, se usan los valores del `application.yaml`. El backend no lee el archivo `.env`.
 
 ## Ejecución
 
@@ -37,21 +38,34 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-Backend:
+Backend (cada servicio en su propia terminal; el orden no importa):
 
 ```bash
+docker compose up -d mysql              # solo MySQL, en localhost:3306 (desde la raíz del repo)
 cd ReservaFit-Backend
-./mvnw spring-boot:run   # http://localhost:8080
-./mvnw test
+./mvnw -pl api-gateway spring-boot:run  # http://localhost:8080, la URL que usa el frontend
+./mvnw -pl ms-usuarios spring-boot:run  # :8081
+./mvnw -pl ms-gimnasios spring-boot:run # :8082
+./mvnw -pl ms-reservas spring-boot:run  # :8083
+./mvnw test                             # tests de ms-reservas, con H2 en memoria
 ```
 
-La base de datos H2 es en memoria y se puebla desde `data.sql`, así que las reservas se pierden en cada reinicio.
+| Servicio | Puerto | Rutas | Tablas |
+| --- | --- | --- | --- |
+| `api-gateway` | 8080 | Reenvía cada request según la ruta | (ninguna) |
+| `ms-usuarios` | 8081 | `/api/usuarios/**` | `usuario` |
+| `ms-gimnasios` | 8082 | `/api/gimnasios/**` | `gimnasio`, `horario` |
+| `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva`, `usuario_replica`, `horario_replica` |
+
+Los datos quedan guardados entre reinicios (`docker compose down -v` borra la base). `ms-gimnasios` carga los gimnasios desde su `data.sql` sin duplicarlos.
+
+`ms-reservas` no lee tablas de otros servicios: trabaja con sus copias `usuario_replica` y `horario_replica`. Esas copias se van a llenar con mensajes de RabbitMQ, que todavía no está implementado. Mientras tanto, crear reservas responde 404 y la disponibilidad también.
 
 ## Docker
 
-Todo el stack (frontend + backend) se levanta con Docker Compose, sin instalar Node ni Java. Necesitas Docker Desktop (o Docker Engine con Compose v2).
+Todo el stack (MySQL, los cuatro servicios del backend y el frontend) se levanta con Docker Compose, sin instalar Node ni Java. Necesitas Docker Desktop (o Docker Engine con Compose v2).
 
-1. Crea el archivo de variables: copia `.env.example` a `.env` y completa los valores. Si ya tienes un `.env` para `pnpm dev`, solo agrega `AZURE_API_CLIENT_ID`: las variables `VITE_*` son las mismas.
+1. Crea el archivo de variables: copia `.env.example` a `.env` y completa los valores. Si ya tienes un `.env` para `pnpm dev`, sirve tal cual: las variables `VITE_*` son las mismas.
 2. Construye y levanta los servicios:
 
    ```bash
@@ -63,9 +77,11 @@ Todo el stack (frontend + backend) se levanta con Docker Compose, sin instalar N
 | Servicio | URL | Imagen |
 | --- | --- | --- |
 | `frontend` | http://localhost:5173 | nginx sirviendo el build estático de la SPA (`Dockerfile`) |
-| `backend` | http://localhost:8080 | Spring Boot sobre JRE 25 (`ReservaFit-Backend/Dockerfile`) |
+| `api-gateway` | http://localhost:8080 | Spring Boot sobre JRE 25 (`ReservaFit-Backend/Dockerfile`, `MODULE=api-gateway`) |
+| `ms-usuarios`, `ms-gimnasios`, `ms-reservas` | solo dentro de la red de Compose | Misma imagen base, un `MODULE` distinto cada uno |
+| `mysql` | `localhost:3306` | MySQL 8.4, con los datos en el volumen `mysql-data` |
 
-El frontend se publica en el puerto 5173 a propósito: es el redirect URI que ya está registrado en Azure, así que no hay que cambiar nada allá. Por lo mismo, no lo corras a la vez que `pnpm dev`.
+Los microservicios no se publican en el host: el navegador solo habla con el gateway, que los encuentra por nombre (`http://ms-reservas:8083`, etc.). El frontend se publica en el puerto 5173 a propósito: es el redirect URI que ya está registrado en Azure, así que no hay que cambiar nada allá. Por lo mismo, no lo corras a la vez que `pnpm dev`.
 
 ### Variables de entorno
 
@@ -77,25 +93,25 @@ Compose lee el archivo `.env` de la raíz del repositorio (ignorado por git). Ni
 | `VITE_API_SCOPE` | frontend (build) | sí | — | `api://<client id de la API>/access_as_user` |
 | `VITE_AZURE_REDIRECT_URI` | frontend (build) | no | `http://localhost:${FRONTEND_PORT}` | Debe estar registrado como redirect URI de tipo SPA en Azure |
 | `VITE_API_BASE_URL` | frontend (build) | no | `http://localhost:${BACKEND_PORT}` | URL del backend vista desde el navegador |
-| `AZURE_API_CLIENT_ID` | backend | sí | — | Client ID del app registration ReservaFit-API (audiencia de los tokens) |
-| `AZURE_API_TENANT_ID` | backend | no | `9188040d-6c67-4c5b-b112-36a304b66dad` | Tenant "consumers" de las cuentas personales de Microsoft |
-| `CORS_ALLOWED_ORIGINS` | backend | no | `http://localhost:${FRONTEND_PORT}` | Orígenes permitidos por CORS, separados por coma y sin espacios |
+| `AZURE_API_CLIENT_ID` | microservicios | no | `f4a5103b-ae57-406d-85e1-eee64edbc4ac` | Client ID del app registration ReservaFit-API (audiencia de los tokens) |
+| `AZURE_API_TENANT_ID` | microservicios | no | `9188040d-6c67-4c5b-b112-36a304b66dad` | Tenant "consumers" de las cuentas personales de Microsoft |
+| `CORS_ALLOWED_ORIGINS` | gateway y microservicios | no | `http://localhost:${FRONTEND_PORT}` | Orígenes permitidos por CORS, separados por coma y sin espacios |
 | `FRONTEND_PORT` | host | no | `5173` | Puerto donde se publica el frontend |
-| `BACKEND_PORT` | host | no | `8080` | Puerto donde se publica el backend |
+| `BACKEND_PORT` | host | no | `8080` | Puerto donde se publica el gateway |
 
 Notas:
 
 - Las variables `VITE_*` se incrustan en el JavaScript al compilar. Si las cambias, reconstruye con `docker compose up --build`. Las del backend se leen al arrancar, así que basta `docker compose up -d`.
 - Si cambias `FRONTEND_PORT`, registra `http://localhost:<puerto>` como redirect URI de tipo SPA en Azure.
-- La base de datos sigue siendo H2 en memoria: al recrear el contenedor del backend se pierden las reservas.
+- Los datos de MySQL se guardan en el volumen `mysql-data`, así que sobreviven a `docker compose down`. `docker compose down -v` los borra.
 - La primera construcción tarda unos minutos porque descarga las dependencias de Maven y pnpm.
 
 Comandos útiles:
 
 ```bash
-docker compose up -d --build --wait   # en segundo plano; espera a que ambos servicios estén healthy
+docker compose up -d --build --wait   # en segundo plano; espera a que todo esté healthy
 docker compose ps                     # estado y healthchecks
-docker compose logs -f backend        # logs del backend
+docker compose logs -f ms-reservas    # logs de un servicio
 docker compose down                   # detiene y elimina los contenedores
 ```
 
@@ -135,12 +151,14 @@ Las fechas viajan como strings `"YYYY-MM-DD"`. Los errores se devuelven como un 
 app/                    Rutas, componentes, lib y tipos de React Router
   lib/                  cliente de API, obtención del token, parseo de errores, utilidades de fechas
   routes/               layout, login, reservas, gimnasios/:id, mis-reservas
-ReservaFit-Backend/
-  src/main/java/...     controller, service, model, dto, config, exception
-  src/main/resources/   application.yaml, data.sql (datos iniciales)
-  Dockerfile            imagen del backend (Maven + JRE 25)
+ReservaFit-Backend/     proyecto Maven multimódulo (pom.xml padre)
+  api-gateway/          rutas en application.yaml, CORS en config/
+  ms-usuarios/          controller, service, model, dto, config, exception
+  ms-gimnasios/         ídem, más data.sql (datos iniciales)
+  ms-reservas/          ídem, más tests
+  Dockerfile            imagen de cualquier módulo (build arg MODULE; Maven + JRE 25)
 Dockerfile              imagen del frontend (build con pnpm + nginx)
-compose.yaml            levanta frontend y backend juntos
+compose.yaml            levanta MySQL, los microservicios y el frontend
 docker/nginx.conf       configuración de nginx para la SPA
 .env.example            plantilla de variables de entorno
 ```

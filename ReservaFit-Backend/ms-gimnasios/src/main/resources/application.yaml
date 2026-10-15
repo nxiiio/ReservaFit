@@ -1,0 +1,47 @@
+server:
+  port: 8082
+spring:
+  output:
+    ansi:
+      enabled: always
+  application:
+    name: ms-gimnasios
+  # Shared MySQL from docker-compose.yml (repo root); each service only touches its own tables
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/reservafit_db
+    username: ${DB_USERNAME:reservafit}
+    password: ${DB_PASSWORD:reservafit}
+  jpa:
+    hibernate:
+      # Creates/updates only the tables of this service's entities
+      ddl-auto: update
+    # Run data.sql after Hibernate creates the schema
+    defer-datasource-initialization: true
+  sql:
+    init:
+      # MySQL is not an embedded database, so data.sql only runs when forced
+      mode: always
+      encoding: UTF-8
+  cloud:
+    azure:
+      active-directory:
+        enabled: true
+        profile:
+          # spring-cloud-azure-starter-active-directory rejects the "consumers" alias
+          # outright for resource-server scenarios; use the resolved tenant GUID instead
+          # (confirmed earlier: Microsoft's /consumers/v2.0 discovery doc self-declares
+          # this as its issuer tenant).
+          # Overridable with AZURE_API_TENANT_ID; the defaults are the committed values
+          tenant-id: ${AZURE_API_TENANT_ID:9188040d-6c67-4c5b-b112-36a304b66dad}
+        credential:
+          client-id: ${AZURE_API_CLIENT_ID:f4a5103b-ae57-406d-85e1-eee64edbc4ac}
+        app-id-uri: api://${AZURE_API_CLIENT_ID:f4a5103b-ae57-406d-85e1-eee64edbc4ac}
+        # Nimbus defaults are 500 ms; the first JWK set fetch from Microsoft often
+        # takes longer and fails with "I/O error ... : null" (a 500, not a 401)
+        jwt-connect-timeout: 5s
+        jwt-read-timeout: 5s
+
+app:
+  cors:
+    # Comma-separated list of browser origins allowed to call the API
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

@@ -1,0 +1,9 @@
+# Tests use an in-memory H2 database instead of the shared MySQL.
+# config/application.yaml is read on top of the main application.yaml, so only these keys change.
+spring:
+  datasource:
+    # An empty URL makes Spring Boot create an embedded H2 database with a unique name per
+    # test context, so contexts with different properties do not share (and re-seed) one database
+    url: ""
+    username: sa
+    password: ""

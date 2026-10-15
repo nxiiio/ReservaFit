@@ -1,35 +1,132 @@
-# Runs the whole stack: the SPA behind nginx and the Spring Boot API.
+# Runs the whole stack: MySQL, the backend microservices behind the gateway, and the SPA
+# behind nginx.
 #
-#   docker compose up --build
+#   docker compose up --build        everything
+#   docker compose up -d mysql       only MySQL, to run the services with ./mvnw
 #
 # Configuration comes from the .env file next to this one (copy .env.example).
 # The frontend is published on 5173 on purpose: that is the SPA redirect URI
 # registered in Azure, so the Docker stack needs no changes there.
+# Only the gateway (8080) and MySQL (3306) are published; the services talk to each other
+# over the compose network by service name.
 name: reservafit
 
+x-backend-service: &backend-service
+  environment: &backend-env
+    DB_HOST: mysql
+    AZURE_API_TENANT_ID: ${AZURE_API_TENANT_ID:-9188040d-6c67-4c5b-b112-36a304b66dad}
+    AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID:-f4a5103b-ae57-406d-85e1-eee64edbc4ac}
+    CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
+    SPRING_OUTPUT_ANSI_ENABLED: never
+  depends_on:
+    mysql:
+      condition: service_healthy
+
 services:
-  backend:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: reservafit_db
+      MYSQL_USER: reservafit
+      MYSQL_PASSWORD: reservafit
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      # Keeps the data between restarts; docker compose down -v deletes it
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ms-usuarios:
+    <<: *backend-service
     build:
       context: ./ReservaFit-Backend
+      args:
+        MODULE: ms-usuarios
+    healthcheck:
+      # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8081/api/usuarios/me"]
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 6
+
+  ms-gimnasios:
+    <<: *backend-service
+    build:
+      context: ./ReservaFit-Backend
+      args:
+        MODULE: ms-gimnasios
+    healthcheck:
+      # Public and hits the database, so a 200 means the service is serving
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8082/api/gimnasios"]
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 6
+
+  ms-reservas:
+    <<: *backend-service
+    build:
+      context: ./ReservaFit-Backend
+      args:
+        MODULE: ms-reservas
+    healthcheck:
+      # Every endpoint but availability needs a token, so any HTTP answer means it is serving
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8083/api/reservas/mias"]
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 6
+
+  api-gateway:
+    build:
+      context: ./ReservaFit-Backend
+      args:
+        MODULE: api-gateway
     environment:
-      AZURE_API_TENANT_ID: ${AZURE_API_TENANT_ID:-9188040d-6c67-4c5b-b112-36a304b66dad}
-      AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID:?AZURE_API_CLIENT_ID is required, see .env.example}
+      USUARIOS_URL: http://ms-usuarios:8081
+      GIMNASIOS_URL: http://ms-gimnasios:8082
+      RESERVAS_URL: http://ms-reservas:8083
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
       SPRING_OUTPUT_ANSI_ENABLED: never
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      # Goes through to ms-gimnasios, so a 200 means requests are being routed
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080/api/gimnasios"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 6
+    depends_on:
+      ms-usuarios:
+        condition: service_healthy
+      ms-gimnasios:
+        condition: service_healthy
+      ms-reservas:
+        condition: service_healthy
 
   frontend:
     build:
       context: .
-      # VITE_* are inlined into the bundle at build time: changing them needs --build
+      # VITE_* are inlined into the bundle at build time: changing them needs --build.
+      # Not marked required here so `docker compose up -d mysql` works without a .env;
+      # the frontend Dockerfile fails the build if the required ones are empty.
       args:
-        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:?VITE_AZURE_CLIENT_ID is required, see .env.example}
+        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:-}
         VITE_AZURE_REDIRECT_URI: ${VITE_AZURE_REDIRECT_URI:-http://localhost:${FRONTEND_PORT:-5173}}
-        VITE_API_SCOPE: ${VITE_API_SCOPE:?VITE_API_SCOPE is required, see .env.example}
+        VITE_API_SCOPE: ${VITE_API_SCOPE:-}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}
     ports:
       - "${FRONTEND_PORT:-5173}:80"
     depends_on:
-      backend:
+      api-gateway:
         condition: service_healthy
+
+volumes:
+  mysql-data:

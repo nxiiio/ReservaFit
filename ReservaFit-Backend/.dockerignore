@@ -1,5 +1,5 @@
 # Build output is produced inside the image
-target/
+**/target/
 
 # Maven wrapper: the build stage uses the Maven that ships with the base image
 .mvn/
