@@ -17,5 +17,10 @@ public interface BookingRepository extends JpaRepository<Reserva, Long> {
             + "where r.gimnasioId = :gymId and r.fecha = :date and r.activa = true")
     List<Long> findActiveScheduleIds(@Param("gymId") Long gymId, @Param("date") LocalDate date);
 
-    List<Reserva> findByUsuarioId(Long usuarioId);
+    // A user's bookings ordered by date and then by start time, oldest first.
+    // The start time lives in the schedule copy, so the query joins both tables by id.
+    @Query("select r from Reserva r, HorarioReplica h "
+            + "where r.horarioId = h.id and r.usuarioId = :userId "
+            + "order by r.fecha asc, h.horaInicio asc")
+    List<Reserva> findByUserOrderedByDateAndTime(@Param("userId") Long userId);
 }

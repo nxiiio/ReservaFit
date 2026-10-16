@@ -44,6 +44,7 @@ public class UserService {
         user.setMicrosoftOid(oid);
         user.setNombre(jwt.getClaimAsString("name"));
         user.setEmail(jwt.getClaimAsString("preferred_username"));
+
         try {
             return new RegistrationResult(repository.saveAndFlush(user), true);
         } catch (DataIntegrityViolationException e) {
@@ -64,6 +65,7 @@ public class UserService {
         user.setNumTarjeta(request.getCardNumber());
         user.setNombreTarjeta(request.getCardHolderName().trim());
         user.setFechaExpTarjeta(request.getCardExpiry());
+
         try {
             return repository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {

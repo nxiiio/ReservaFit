@@ -3,11 +3,11 @@ package cl.nxiiio.reservafit.reservas.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Comparator;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,8 +25,8 @@ import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
-import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
 import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
+import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
 import cl.nxiiio.reservafit.reservas.model.HorarioReplica;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
 import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
@@ -66,6 +66,7 @@ public class BookingService {
         }
 
         Set<Long> taken = Set.copyOf(bookingRepository.findActiveScheduleIds(gymId, date));
+
         LocalDate today = LocalDate.now(clock);
         boolean dateBookable = !date.isBefore(today) && !date.isAfter(today.plusDays(MAX_DAYS_AHEAD));
 
@@ -83,6 +84,7 @@ public class BookingService {
         UsuarioReplica user = findUser(oid);
         HorarioReplica schedule = findSchedule(request.getScheduleId());
         LocalDate date = request.getDate();
+
         validateBookingDate(schedule, date);
 
         if (bookingRepository.existsByHorarioIdAndFechaAndActivaTrue(schedule.getId(), date)) {
@@ -96,6 +98,7 @@ public class BookingService {
         booking.setFecha(date);
         booking.setEstado(EstadoReserva.CONFIRMADA);
         booking.setActiva(Boolean.TRUE);
+
         try {
             // Flush now so a uq_reserva_slot violation surfaces here, not at commit
             bookingRepository.saveAndFlush(booking);
@@ -103,6 +106,7 @@ public class BookingService {
             // A concurrent request took the slot between the check above and this insert
             throw new SlotAlreadyBookedException();
         }
+
         return toResponse(booking, schedule);
     }
 
@@ -111,22 +115,31 @@ public class BookingService {
     public List<BookingResponse> findMine(String oid) {
         UsuarioReplica user = findUser(oid);
         LocalDate today = LocalDate.now(clock);
-        List<Reserva> bookings = bookingRepository.findByUsuarioId(user.getId());
-        Map<Long, HorarioReplica> schedules = scheduleRepository
-                .findAllById(bookings.stream().map(Reserva::getHorarioId).distinct().toList()).stream()
-                .collect(Collectors.toMap(HorarioReplica::getId, Function.identity()));
-        Comparator<Reserva> byDateAndTime = Comparator
-                .comparing(Reserva::getFecha)
-                .thenComparing(booking -> schedules.get(booking.getHorarioId()).getHoraInicio());
 
-        var partitioned = bookings.stream()
-                .collect(Collectors.partitioningBy(booking -> booking.getEstado() == EstadoReserva.CONFIRMADA
-                        && !booking.getFecha().isBefore(today)));
-        Stream<Reserva> upcoming = partitioned.get(true).stream().sorted(byDateAndTime);
-        Stream<Reserva> history = partitioned.get(false).stream().sorted(byDateAndTime.reversed());
+        // Already ordered by date and start time, oldest first
+        List<Reserva> bookings = bookingRepository.findByUserOrderedByDateAndTime(user.getId());
 
-        return Stream.concat(upcoming, history)
-                .map(booking -> toResponse(booking, schedules.get(booking.getHorarioId())))
+        // Schedule copy of each booking, by schedule id, to build the responses
+        List<Long> scheduleIds = bookings.stream()
+                .map(Reserva::getHorarioId)
+                .distinct()
+                .toList();
+        Map<Long, HorarioReplica> schedulesById = scheduleRepository.findAllById(scheduleIds).stream()
+                .collect(Collectors.toMap(HorarioReplica::getId, schedule -> schedule));
+
+        // Upcoming keeps the query order (soonest first)
+        List<Reserva> upcoming = bookings.stream()
+                .filter(booking -> isUpcoming(booking, today))
+                .toList();
+
+        // History is reversed so the newest comes first
+        List<Reserva> history = new ArrayList<>(bookings.stream()
+                .filter(booking -> !isUpcoming(booking, today))
+                .toList());
+        Collections.reverse(history);
+
+        return Stream.concat(upcoming.stream(), history.stream())
+                .map(booking -> toResponse(booking, schedulesById.get(booking.getHorarioId())))
                 .toList();
     }
 
@@ -137,14 +150,17 @@ public class BookingService {
                 .filter(b -> b.getUsuarioId().equals(user.getId()))
                 .orElseThrow(() -> new BookingNotFoundException(bookingId));
         HorarioReplica schedule = findSchedule(booking.getHorarioId());
+
         if (booking.getEstado() == EstadoReserva.CANCELADA) {
             throw new AlreadyCancelledException();
         }
         if (hasStarted(schedule, booking.getFecha())) {
             throw new BookingAlreadyStartedException();
         }
+
         booking.setEstado(EstadoReserva.CANCELADA);
         booking.setActiva(null);
+
         return toResponse(booking, schedule);
     }
 
@@ -158,6 +174,7 @@ public class BookingService {
 
     private void validateBookingDate(HorarioReplica schedule, LocalDate date) {
         LocalDate today = LocalDate.now(clock);
+
         if (date.isBefore(today)) {
             throw new InvalidBookingDateException("date", "La fecha no puede ser anterior a hoy");
         }
@@ -168,6 +185,11 @@ public class BookingService {
         if (hasStarted(schedule, date)) {
             throw new InvalidBookingDateException("scheduleId", "Este horario ya comenzó");
         }
+    }
+
+    // Confirmed and not in the past (today counts as upcoming)
+    private boolean isUpcoming(Reserva booking, LocalDate today) {
+        return booking.getEstado() == EstadoReserva.CONFIRMADA && !booking.getFecha().isBefore(today);
     }
 
     // True when the slot's date has passed, or it is today and the slot already began
