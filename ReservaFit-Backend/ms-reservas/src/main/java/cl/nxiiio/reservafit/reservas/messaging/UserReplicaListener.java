@@ -5,8 +5,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
-import cl.nxiiio.reservafit.events.RabbitNames;
-import cl.nxiiio.reservafit.events.UserRegisteredEvent;
 import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
 

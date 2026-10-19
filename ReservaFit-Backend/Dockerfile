@@ -12,14 +12,12 @@ WORKDIR /build
 
 # Resolve dependencies first so this layer stays cached until a pom.xml changes
 COPY pom.xml ./
-COPY reservafit-events/pom.xml reservafit-events/
 COPY api-gateway/pom.xml api-gateway/
 COPY ms-usuarios/pom.xml ms-usuarios/
 COPY ms-gimnasios/pom.xml ms-gimnasios/
 COPY ms-reservas/pom.xml ms-reservas/
 RUN test -n "$MODULE" || { echo "Build arg MODULE is required, e.g. ms-reservas" >&2; exit 1; }
-# reservafit-events is built from source below, so it is not downloaded here
-RUN mvn -B -ntp -pl "$MODULE" -am dependency:go-offline -DexcludeGroupIds=cl.nxiiio
+RUN mvn -B -ntp -pl "$MODULE" -am dependency:go-offline
 
 COPY . .
 # Tests run with `./mvnw test`, not on every image build

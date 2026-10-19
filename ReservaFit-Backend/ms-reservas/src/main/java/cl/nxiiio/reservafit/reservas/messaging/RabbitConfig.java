@@ -1,4 +1,4 @@
-package cl.nxiiio.reservafit.events;
+package cl.nxiiio.reservafit.reservas.messaging;
 
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -10,15 +10,12 @@ import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 
-// Declares the whole RabbitMQ topology. Every service imports this class, and Spring creates
-// what is missing when it connects (declaring something that already exists does nothing).
-// So it does not matter which service starts first: the queues always exist before a message.
-// It also brings PublisherLoggingConfig, so importing this one class is all a service needs.
+// Declares the queues this service reads, their dead letter queues and both exchanges.
+// Spring creates what is missing when it connects (declaring something that exists does nothing).
+// The queues belong to this service because it is the one that consumes them.
 @Configuration
-@Import(PublisherLoggingConfig.class)
-public class RabbitTopologyConfig {
+public class RabbitConfig {
 
     // ---------- Exchanges ----------
 
@@ -95,9 +92,12 @@ public class RabbitTopologyConfig {
 
     // ---------- Message format ----------
 
-    // Messages travel as JSON. Spring Boot uses this bean for both sending and receiving.
+    // Messages travel as JSON. The producers' event classes live in other packages, so the
+    // message is always read into the class of the listener's parameter (this service's copy)
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new JacksonJsonMessageConverter();
+        JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter();
+        converter.setAlwaysConvertToInferredType(true);
+        return converter;
     }
 }

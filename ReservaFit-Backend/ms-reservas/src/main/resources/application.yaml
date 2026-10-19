@@ -29,7 +29,7 @@ spring:
     listener:
       simple:
         # A message that still fails after the retries is rejected without going back to
-        # its queue, so RabbitMQ moves it to the dead letter queue (see RabbitTopologyConfig)
+        # its queue, so RabbitMQ moves it to the dead letter queue (see messaging/RabbitConfig)
         default-requeue-rejected: false
         retry:
           enabled: true

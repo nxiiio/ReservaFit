@@ -38,15 +38,15 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-Backend (cada servicio en su propia terminal; el orden no importa):
+Backend (cada servicio en su propia terminal):
 
 ```bash
 docker compose up -d mysql rabbitmq     # MySQL (localhost:3306) y RabbitMQ (localhost:5672), desde la raíz del repo
 cd ReservaFit-Backend
 ./mvnw -pl api-gateway spring-boot:run  # http://localhost:8080, la URL que usa el frontend
+./mvnw -pl ms-reservas spring-boot:run  # :8083 (antes que ms-gimnasios)
 ./mvnw -pl ms-usuarios spring-boot:run  # :8081
 ./mvnw -pl ms-gimnasios spring-boot:run # :8082
-./mvnw -pl ms-reservas spring-boot:run  # :8083
 ./mvnw test                             # tests de ms-reservas, con H2 en memoria
 ```
 
@@ -74,7 +74,8 @@ Los datos quedan guardados entre reinicios (`docker compose down -v` borra la ba
 - Si un mensaje no calza con ninguna cola, o RabbitMQ no lo confirma, el servicio que lo envió lo escribe en su log.
 - Los logs salen por consola y en `logs/<servicio>.log`.
 - El panel de RabbitMQ está en http://localhost:15672 (usuario y clave `reservafit`). Ahí se ven las colas, las DLQ y se pueden publicar mensajes de prueba.
-- Los nombres, la topología y las clases de los mensajes están en el módulo compartido `reservafit-events`.
+- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en el productor y en `ms-reservas`.
+- Las colas las crea `ms-reservas`. Por eso, al levantar con `./mvnw`, conviene arrancar `ms-reservas` antes que `ms-gimnasios`; si no, los horarios no encuentran cola y hay que reiniciar `ms-gimnasios`. `compose.yaml` ya respeta ese orden.
 
 ## Docker
 
@@ -168,7 +169,6 @@ app/                    Rutas, componentes, lib y tipos de React Router
   lib/                  cliente de API, obtención del token, parseo de errores, utilidades de fechas
   routes/               layout, login, reservas, gimnasios/:id, mis-reservas
 ReservaFit-Backend/     proyecto Maven multimódulo (pom.xml padre)
-  reservafit-events/    compartido: nombres y topología de RabbitMQ, clases de los mensajes
   api-gateway/          rutas en application.yaml, CORS en config/
   ms-usuarios/          controller, service, model, dto, config, exception, messaging
   ms-gimnasios/         ídem, más data.sql (datos iniciales)

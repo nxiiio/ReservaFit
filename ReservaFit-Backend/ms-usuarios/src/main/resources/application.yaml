@@ -22,7 +22,7 @@ spring:
     username: ${RABBITMQ_USERNAME:reservafit}
     password: ${RABBITMQ_PASSWORD:reservafit}
     # RabbitMQ confirms every message and returns the ones no queue accepts;
-    # PublisherLoggingConfig (reservafit-events) logs both cases
+    # messaging/RabbitConfig logs both cases
     publisher-confirm-type: correlated
     publisher-returns: true
     template:

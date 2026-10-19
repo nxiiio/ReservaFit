@@ -15,7 +15,6 @@
 
 	<!-- One module per microservice; this parent only shares versions and build settings -->
 	<modules>
-		<module>reservafit-events</module>
 		<module>api-gateway</module>
 		<module>ms-usuarios</module>
 		<module>ms-gimnasios</module>

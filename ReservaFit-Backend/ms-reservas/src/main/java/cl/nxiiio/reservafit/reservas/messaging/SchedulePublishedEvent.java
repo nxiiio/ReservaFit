@@ -1,4 +1,4 @@
-package cl.nxiiio.reservafit.events;
+package cl.nxiiio.reservafit.reservas.messaging;
 
 import java.time.LocalTime;
 
@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Published by ms-gimnasios for each schedule when it starts. Carries the gym data that
+// Copy of the message class of the publishing service (same field names). Published by ms-gimnasios for each schedule when it starts. Carries the gym data that
 // booking responses show, so ms-reservas never has to ask ms-gimnasios for it.
 @Getter
 @Setter

@@ -41,11 +41,10 @@
 			<artifactId>spring-cloud-azure-starter-active-directory</artifactId>
 		</dependency>
 
-		<!-- RabbitMQ: names, topology and message classes shared by every service -->
+		<!-- RabbitMQ (Spring AMQP) -->
 		<dependency>
-			<groupId>cl.nxiiio</groupId>
-			<artifactId>reservafit-events</artifactId>
-			<version>${project.version}</version>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
 		</dependency>
 
 		<dependency>

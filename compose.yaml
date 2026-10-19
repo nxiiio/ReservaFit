@@ -81,6 +81,15 @@ services:
       context: ./ReservaFit-Backend
       args:
         MODULE: ms-gimnasios
+    # Publishes its schedules on startup, and the queues are created by ms-reservas,
+    # so it starts after ms-reservas. (depends_on replaces the shared one, so it repeats it.)
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ms-reservas:
+        condition: service_healthy
     healthcheck:
       # Public and hits the database, so a 200 means the service is serving
       test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8082/api/gimnasios"]

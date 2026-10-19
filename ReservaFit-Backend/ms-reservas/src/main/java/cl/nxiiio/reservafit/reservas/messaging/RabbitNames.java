@@ -1,6 +1,7 @@
-package cl.nxiiio.reservafit.events;
+package cl.nxiiio.reservafit.reservas.messaging;
 
-// Every RabbitMQ name in one place, so producers and the consumer can never disagree on a string
+// RabbitMQ names used by ms-reservas. The exchange and routing keys must match the ones in
+// ms-usuarios' and ms-gimnasios' own RabbitNames, or their messages never reach these queues.
 public final class RabbitNames {
 
     // Exchanges

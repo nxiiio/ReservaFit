@@ -1,22 +1,39 @@
-package cl.nxiiio.reservafit.events;
+package cl.nxiiio.reservafit.gimnasios.messaging;
 
 import java.nio.charset.StandardCharsets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.ReturnedMessage;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-// Logs the messages a producer sent that RabbitMQ could not deliver. Needs, in application.yaml,
-// spring.rabbitmq.publisher-returns, publisher-confirm-type: correlated and template.mandatory.
+// RabbitMQ setup of this service, which only publishes. The queues belong to ms-reservas,
+// which declares them; this service only needs the exchange it publishes to.
 @Configuration
-public class PublisherLoggingConfig {
+public class RabbitConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(PublisherLoggingConfig.class);
+    private static final Logger log = LoggerFactory.getLogger(RabbitConfig.class);
 
+    // Created in RabbitMQ on connect if it does not exist yet
+    @Bean
+    public TopicExchange eventsExchange() {
+        return new TopicExchange(RabbitNames.EVENTS_EXCHANGE);
+    }
+
+    // Messages travel as JSON. Spring Boot uses this bean when sending.
+    @Bean
+    public MessageConverter jsonMessageConverter() {
+        return new JacksonJsonMessageConverter();
+    }
+
+    // Logs the messages RabbitMQ could not deliver. Needs, in application.yaml,
+    // spring.rabbitmq.publisher-returns, publisher-confirm-type: correlated and template.mandatory.
     @Bean
     public RabbitTemplateCustomizer logUndeliveredMessages() {
         return rabbitTemplate -> {

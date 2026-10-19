@@ -6,8 +6,6 @@ import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
-import cl.nxiiio.reservafit.events.RabbitNames;
-import cl.nxiiio.reservafit.events.UserRegisteredEvent;
 import cl.nxiiio.reservafit.usuarios.model.Usuario;
 
 // Tells the other services (today only ms-reservas) about a user, through RabbitMQ
