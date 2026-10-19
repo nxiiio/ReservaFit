@@ -41,6 +41,13 @@
 			<artifactId>spring-cloud-azure-starter-active-directory</artifactId>
 		</dependency>
 
+		<!-- RabbitMQ: names, topology and message classes shared by every service -->
+		<dependency>
+			<groupId>cl.nxiiio</groupId>
+			<artifactId>reservafit-events</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
 		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>

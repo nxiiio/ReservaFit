@@ -13,7 +13,7 @@ La autenticación usa cuentas personales de Microsoft (MSAL). El frontend obtien
 
 - Node 20+ y **npm**
 - Java 25 (el backend incluye el wrapper de Maven)
-- Docker, para levantar MySQL
+- Docker, para levantar MySQL y RabbitMQ
 
 ## Variables de entorno
 
@@ -41,7 +41,7 @@ npm run dev        # http://localhost:5173
 Backend (cada servicio en su propia terminal; el orden no importa):
 
 ```bash
-docker compose up -d mysql              # solo MySQL, en localhost:3306 (desde la raíz del repo)
+docker compose up -d mysql rabbitmq     # MySQL (localhost:3306) y RabbitMQ (localhost:5672), desde la raíz del repo
 cd ReservaFit-Backend
 ./mvnw -pl api-gateway spring-boot:run  # http://localhost:8080, la URL que usa el frontend
 ./mvnw -pl ms-usuarios spring-boot:run  # :8081
@@ -56,14 +56,29 @@ cd ReservaFit-Backend
 | `ms-usuarios` | 8081 | `/api/usuarios/**` | `usuario` |
 | `ms-gimnasios` | 8082 | `/api/gimnasios/**` | `gimnasio`, `horario` |
 | `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva`, `usuario_replica`, `horario_replica` |
+| `rabbitmq` | 5672, panel en 15672 | Mensajes entre los servicios | (ninguna) |
 
 Los datos quedan guardados entre reinicios (`docker compose down -v` borra la base). `ms-gimnasios` carga los gimnasios desde su `data.sql` sin duplicarlos.
 
-`ms-reservas` no lee tablas de otros servicios: trabaja con sus copias `usuario_replica` y `horario_replica`. Esas copias se van a llenar con mensajes de RabbitMQ, que todavía no está implementado. Mientras tanto, crear reservas responde 404 y la disponibilidad también.
+`ms-reservas` no lee tablas de otros servicios: trabaja con sus copias `usuario_replica` y `horario_replica`, que se llenan con mensajes de RabbitMQ.
+
+### RabbitMQ
+
+| Mensaje | Lo publica | Cuándo | Cola | Lo consume |
+| --- | --- | --- | --- | --- |
+| `user.registered` | `ms-usuarios` | En cada login (`POST /api/usuarios/me`) | `reservas.users` | `ms-reservas` → `usuario_replica` |
+| `schedule.published` | `ms-gimnasios` | Al arrancar, uno por horario | `reservas.schedules` | `ms-reservas` → `horario_replica` |
+
+- Los mensajes van al exchange topic `reservafit.events`. Cada cola recibe los mensajes cuya routing key calza con su binding (`user.*` o `schedule.*`).
+- Si `ms-reservas` falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a su DLQ (`reservas.users.dlq` o `reservas.schedules.dlq`) a través del exchange `reservafit.dlx`, donde queda guardado.
+- Si un mensaje no calza con ninguna cola, o RabbitMQ no lo confirma, el servicio que lo envió lo escribe en su log.
+- Los logs salen por consola y en `logs/<servicio>.log`.
+- El panel de RabbitMQ está en http://localhost:15672 (usuario y clave `reservafit`). Ahí se ven las colas, las DLQ y se pueden publicar mensajes de prueba.
+- Los nombres, la topología y las clases de los mensajes están en el módulo compartido `reservafit-events`.
 
 ## Docker
 
-Todo el stack (MySQL, los cuatro servicios del backend y el frontend) se levanta con Docker Compose, sin instalar Node ni Java. Necesitas Docker Desktop (o Docker Engine con Compose v2).
+Todo el stack (MySQL, RabbitMQ, los cuatro servicios del backend y el frontend) se levanta con Docker Compose, sin instalar Node ni Java. Necesitas Docker Desktop (o Docker Engine con Compose v2).
 
 1. Crea el archivo de variables: copia `.env.example` a `.env` y completa los valores. Si ya tienes un `.env` para `pnpm dev`, sirve tal cual: las variables `VITE_*` son las mismas.
 2. Construye y levanta los servicios:
@@ -80,6 +95,7 @@ Todo el stack (MySQL, los cuatro servicios del backend y el frontend) se levanta
 | `api-gateway` | http://localhost:8080 | Spring Boot sobre JRE 25 (`ReservaFit-Backend/Dockerfile`, `MODULE=api-gateway`) |
 | `ms-usuarios`, `ms-gimnasios`, `ms-reservas` | solo dentro de la red de Compose | Misma imagen base, un `MODULE` distinto cada uno |
 | `mysql` | `localhost:3306` | MySQL 8.4, con los datos en el volumen `mysql-data` |
+| `rabbitmq` | `localhost:5672`, panel en http://localhost:15672 | RabbitMQ 4 con el plugin de administración |
 
 Los microservicios no se publican en el host: el navegador solo habla con el gateway, que los encuentra por nombre (`http://ms-reservas:8083`, etc.). El frontend se publica en el puerto 5173 a propósito: es el redirect URI que ya está registrado en Azure, así que no hay que cambiar nada allá. Por lo mismo, no lo corras a la vez que `pnpm dev`.
 
@@ -103,7 +119,7 @@ Notas:
 
 - Las variables `VITE_*` se incrustan en el JavaScript al compilar. Si las cambias, reconstruye con `docker compose up --build`. Las del backend se leen al arrancar, así que basta `docker compose up -d`.
 - Si cambias `FRONTEND_PORT`, registra `http://localhost:<puerto>` como redirect URI de tipo SPA en Azure.
-- Los datos de MySQL se guardan en el volumen `mysql-data`, así que sobreviven a `docker compose down`. `docker compose down -v` los borra.
+- Los datos de MySQL y los mensajes de RabbitMQ se guardan en los volúmenes `mysql-data` y `rabbitmq-data`, así que sobreviven a `docker compose down`. `docker compose down -v` los borra.
 - La primera construcción tarda unos minutos porque descarga las dependencias de Maven y pnpm.
 
 Comandos útiles:
@@ -152,13 +168,14 @@ app/                    Rutas, componentes, lib y tipos de React Router
   lib/                  cliente de API, obtención del token, parseo de errores, utilidades de fechas
   routes/               layout, login, reservas, gimnasios/:id, mis-reservas
 ReservaFit-Backend/     proyecto Maven multimódulo (pom.xml padre)
+  reservafit-events/    compartido: nombres y topología de RabbitMQ, clases de los mensajes
   api-gateway/          rutas en application.yaml, CORS en config/
-  ms-usuarios/          controller, service, model, dto, config, exception
+  ms-usuarios/          controller, service, model, dto, config, exception, messaging
   ms-gimnasios/         ídem, más data.sql (datos iniciales)
   ms-reservas/          ídem, más tests
   Dockerfile            imagen de cualquier módulo (build arg MODULE; Maven + JRE 25)
 Dockerfile              imagen del frontend (build con pnpm + nginx)
-compose.yaml            levanta MySQL, los microservicios y el frontend
+compose.yaml            levanta MySQL, RabbitMQ, los microservicios y el frontend
 docker/nginx.conf       configuración de nginx para la SPA
 .env.example            plantilla de variables de entorno
 ```

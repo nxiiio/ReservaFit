@@ -20,6 +20,22 @@ spring:
   sql:
     init:
       encoding: UTF-8
+  # RabbitMQ (this service consumes). Defaults match compose.yaml.
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: ${RABBITMQ_USERNAME:reservafit}
+    password: ${RABBITMQ_PASSWORD:reservafit}
+    listener:
+      simple:
+        # A message that still fails after the retries is rejected without going back to
+        # its queue, so RabbitMQ moves it to the dead letter queue (see RabbitTopologyConfig)
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 4        # 1 attempt + 3 retries
+          initial-interval: 1s
+          multiplier: 2          # waits 1s, 2s, 4s
   cloud:
     azure:
       active-directory:
@@ -43,3 +59,8 @@ app:
   cors:
     # Comma-separated list of browser origins allowed to call the API
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+logging:
+  file:
+    # Also written to the console; in Docker see `docker compose logs ms-reservas`
+    name: logs/ms-reservas.log

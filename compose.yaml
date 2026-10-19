@@ -1,25 +1,28 @@
-# Runs the whole stack: MySQL, the backend microservices behind the gateway, and the SPA
-# behind nginx.
+# Runs the whole stack: MySQL, RabbitMQ, the backend microservices behind the gateway, and the
+# SPA behind nginx.
 #
-#   docker compose up --build        everything
-#   docker compose up -d mysql       only MySQL, to run the services with ./mvnw
+#   docker compose up --build                 everything
+#   docker compose up -d mysql rabbitmq       only the infrastructure, to run the services with ./mvnw
 #
 # Configuration comes from the .env file next to this one (copy .env.example).
 # The frontend is published on 5173 on purpose: that is the SPA redirect URI
 # registered in Azure, so the Docker stack needs no changes there.
-# Only the gateway (8080) and MySQL (3306) are published; the services talk to each other
-# over the compose network by service name.
+# Only the gateway (8080), MySQL (3306) and RabbitMQ (5672, panel on 15672) are published;
+# the services talk to each other over the compose network by service name.
 name: reservafit
 
 x-backend-service: &backend-service
   environment: &backend-env
     DB_HOST: mysql
+    RABBITMQ_HOST: rabbitmq
     AZURE_API_TENANT_ID: ${AZURE_API_TENANT_ID:-9188040d-6c67-4c5b-b112-36a304b66dad}
     AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID:-f4a5103b-ae57-406d-85e1-eee64edbc4ac}
     CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
     SPRING_OUTPUT_ANSI_ENABLED: never
   depends_on:
     mysql:
+      condition: service_healthy
+    rabbitmq:
       condition: service_healthy
 
 services:
@@ -40,6 +43,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: reservafit
+      RABBITMQ_DEFAULT_PASS: reservafit
+    ports:
+      - "5672:5672"     # used by the services
+      - "15672:15672"   # web panel: http://localhost:15672 (reservafit / reservafit)
+    volumes:
+      # Keeps queued messages (and the dead letter queues) between restarts
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   ms-usuarios:
     <<: *backend-service
@@ -130,3 +150,4 @@ services:
 
 volumes:
   mysql-data:
+  rabbitmq-data:

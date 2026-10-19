@@ -12,12 +12,14 @@ WORKDIR /build
 
 # Resolve dependencies first so this layer stays cached until a pom.xml changes
 COPY pom.xml ./
+COPY reservafit-events/pom.xml reservafit-events/
 COPY api-gateway/pom.xml api-gateway/
 COPY ms-usuarios/pom.xml ms-usuarios/
 COPY ms-gimnasios/pom.xml ms-gimnasios/
 COPY ms-reservas/pom.xml ms-reservas/
 RUN test -n "$MODULE" || { echo "Build arg MODULE is required, e.g. ms-reservas" >&2; exit 1; }
-RUN mvn -B -ntp -pl "$MODULE" -am dependency:go-offline
+# reservafit-events is built from source below, so it is not downloaded here
+RUN mvn -B -ntp -pl "$MODULE" -am dependency:go-offline -DexcludeGroupIds=cl.nxiiio
 
 COPY . .
 # Tests run with `./mvnw test`, not on every image build
@@ -33,7 +35,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 app \
-    && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
+    && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app \
+    && mkdir /app/logs && chown app:app /app/logs
 
 COPY --from=build /build/app.jar app.jar
 
