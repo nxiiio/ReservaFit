@@ -41,6 +41,12 @@
 			<artifactId>spring-cloud-azure-starter-active-directory</artifactId>
 		</dependency>
 
+		<!-- HTTP calls to ms-gimnasios (client/GymClient); version from the Spring Cloud BOM -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
 		<!-- RabbitMQ (Spring AMQP) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

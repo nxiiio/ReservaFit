@@ -66,7 +66,7 @@ class BookingServiceTest {
         service = serviceAt(CLOCK);
         userA = userRepository.save(user(1L, OID_A));
         userRepository.save(user(2L, OID_B));
-        List<ScheduleInfo> slots = gymClient.findSchedulesOfGym(FakeGymClient.GYM_ID);
+        List<ScheduleInfo> slots = gymClient.findSchedulesOfGym(FakeGymClient.GYM_ID).orElseThrow();
         earlySlot = slots.get(0);
         eveningSlot = slots.get(2);
         assertEquals(LocalTime.of(7, 0), earlySlot.getStartTime());

@@ -60,7 +60,7 @@ cd ReservaFit-Backend
 
 Los datos quedan guardados entre reinicios (`docker compose down -v` borra la base). `ms-gimnasios` carga los gimnasios desde su `data.sql` sin duplicarlos.
 
-Ningún servicio lee tablas de otro. `ms-reservas` obtiene los usuarios de su copia `usuario_replica`, que se llena con mensajes de RabbitMQ, y les pregunta los horarios a `ms-gimnasios` por HTTP (`client/GymClient`, directo a `GIMNASIOS_URL`, sin pasar por el gateway). Si `ms-gimnasios` no responde, reservar y ver la disponibilidad devuelven 503.
+Ningún servicio lee tablas de otro. `ms-reservas` obtiene los usuarios de su copia `usuario_replica`, que se llena con mensajes de RabbitMQ, y les pregunta los horarios a `ms-gimnasios` por HTTP con OpenFeign (`client/GymClient`, directo a `GIMNASIOS_URL`, sin pasar por el gateway). Si `ms-gimnasios` no responde, reservar y ver la disponibilidad devuelven 503.
 
 ### RabbitMQ
 

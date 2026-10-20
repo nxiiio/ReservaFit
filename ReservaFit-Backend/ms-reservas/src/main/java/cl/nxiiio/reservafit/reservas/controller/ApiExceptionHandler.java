@@ -12,11 +12,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import feign.FeignException;
+
 import cl.nxiiio.reservafit.reservas.exception.AlreadyCancelledException;
 import cl.nxiiio.reservafit.reservas.exception.BookingAlreadyStartedException;
 import cl.nxiiio.reservafit.reservas.exception.BookingNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
-import cl.nxiiio.reservafit.reservas.exception.GymServiceUnavailableException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
@@ -102,8 +103,9 @@ public class ApiExceptionHandler {
         return Map.of("error", "Esta reserva ya comenzó y no se puede cancelar");
     }
 
-    // ms-gimnasios did not answer, so schedules cannot be checked right now
-    @ExceptionHandler(GymServiceUnavailableException.class)
+    // ms-gimnasios did not answer (or failed), so schedules cannot be checked right now.
+    // Thrown by client/GymClient; a 404 from ms-gimnasios does not get here (see dismiss404).
+    @ExceptionHandler(FeignException.class)
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     public Map<String, String> handleGymServiceUnavailable() {
         return Map.of("error", "No se pudo consultar el gimnasio, intenta más tarde");

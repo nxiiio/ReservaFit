@@ -2,15 +2,14 @@ package cl.nxiiio.reservafit.reservas.service;
 
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 import cl.nxiiio.reservafit.reservas.client.GymClient;
 import cl.nxiiio.reservafit.reservas.client.ScheduleInfo;
-import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
-import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 
 // Answers like ms-gimnasios would, without HTTP. Mirrors gym 1 ("Fuerza Barrio Gym")
-// of ms-gimnasios' data.sql.
-class FakeGymClient extends GymClient {
+// of ms-gimnasios' data.sql. An unknown id gives an empty Optional, like a 404 from ms-gimnasios.
+class FakeGymClient implements GymClient {
 
     static final Long GYM_ID = 1L;
 
@@ -20,11 +19,6 @@ class FakeGymClient extends GymClient {
             schedule(3L, 18),
             schedule(4L, 19),
             schedule(5L, 20));
-
-    FakeGymClient() {
-        // Never used: both methods are replaced below
-        super("http://localhost:0");
-    }
 
     private static ScheduleInfo schedule(Long id, int startHour) {
         return new ScheduleInfo(
@@ -38,18 +32,17 @@ class FakeGymClient extends GymClient {
     }
 
     @Override
-    public List<ScheduleInfo> findSchedulesOfGym(Long gymId) {
+    public Optional<List<ScheduleInfo>> findSchedulesOfGym(Long gymId) {
         if (!GYM_ID.equals(gymId)) {
-            throw new GymNotFoundException(gymId);
+            return Optional.empty();
         }
-        return GYM_SCHEDULES;
+        return Optional.of(GYM_SCHEDULES);
     }
 
     @Override
-    public ScheduleInfo findSchedule(Long scheduleId) {
+    public Optional<ScheduleInfo> findSchedule(Long scheduleId) {
         return GYM_SCHEDULES.stream()
                 .filter(schedule -> schedule.getId().equals(scheduleId))
-                .findFirst()
-                .orElseThrow(() -> new ScheduleNotFoundException(scheduleId));
+                .findFirst();
     }
 }

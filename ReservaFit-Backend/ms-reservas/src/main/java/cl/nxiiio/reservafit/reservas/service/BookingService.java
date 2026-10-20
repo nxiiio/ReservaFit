@@ -24,7 +24,9 @@ import cl.nxiiio.reservafit.reservas.dto.SlotAvailabilityResponse;
 import cl.nxiiio.reservafit.reservas.exception.AlreadyCancelledException;
 import cl.nxiiio.reservafit.reservas.exception.BookingAlreadyStartedException;
 import cl.nxiiio.reservafit.reservas.exception.BookingNotFoundException;
+import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
+import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
 import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
 import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
@@ -63,8 +65,8 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public List<SlotAvailabilityResponse> getAvailability(Long gymId, LocalDate date) {
-        // 404 (GymNotFoundException) when ms-gimnasios does not know the gym
-        List<ScheduleInfo> schedules = gymClient.findSchedulesOfGym(gymId);
+        List<ScheduleInfo> schedules = gymClient.findSchedulesOfGym(gymId)
+                .orElseThrow(() -> new GymNotFoundException(gymId));
 
         Set<Long> taken = Set.copyOf(bookingRepository.findActiveScheduleIds(gymId, date));
 
@@ -83,7 +85,7 @@ public class BookingService {
     @Transactional
     public BookingResponse create(String oid, CreateBookingRequest request) {
         UsuarioReplica user = findUser(oid);
-        ScheduleInfo schedule = gymClient.findSchedule(request.getScheduleId());
+        ScheduleInfo schedule = findSchedule(request.getScheduleId());
         LocalDate date = request.getDate();
 
         validateBookingDate(schedule, date);
@@ -126,7 +128,7 @@ public class BookingService {
         Map<Long, ScheduleInfo> schedulesById = bookings.stream()
                 .map(Reserva::getHorarioId)
                 .distinct()
-                .map(gymClient::findSchedule)
+                .map(this::findSchedule)
                 .collect(Collectors.toMap(ScheduleInfo::getId, schedule -> schedule));
 
         // Oldest first: by date, and by start time within the same date
@@ -154,7 +156,7 @@ public class BookingService {
         Reserva booking = bookingRepository.findById(bookingId)
                 .filter(b -> b.getUsuarioId().equals(user.getId()))
                 .orElseThrow(() -> new BookingNotFoundException(bookingId));
-        ScheduleInfo schedule = gymClient.findSchedule(booking.getHorarioId());
+        ScheduleInfo schedule = findSchedule(booking.getHorarioId());
 
         if (booking.getEstado() == EstadoReserva.CANCELADA) {
             throw new AlreadyCancelledException();
@@ -174,6 +176,12 @@ public class BookingService {
 
     private UsuarioReplica findUser(String oid) {
         return userRepository.findByMicrosoftOid(oid).orElseThrow(UserNotFoundException::new);
+    }
+
+    // Empty when ms-gimnasios answers 404
+    private ScheduleInfo findSchedule(Long scheduleId) {
+        return gymClient.findSchedule(scheduleId)
+                .orElseThrow(() -> new ScheduleNotFoundException(scheduleId));
     }
 
     private void validateBookingDate(ScheduleInfo schedule, LocalDate date) {
