@@ -22,18 +22,22 @@ spring:
       # MySQL is not an embedded database, so data.sql only runs when forced
       mode: always
       encoding: UTF-8
-  # RabbitMQ (this service publishes). Defaults match compose.yaml.
+  # RabbitMQ (this service consumes the bookings). Defaults match compose.yaml.
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: 5672
     username: ${RABBITMQ_USERNAME:reservafit}
     password: ${RABBITMQ_PASSWORD:reservafit}
-    # RabbitMQ confirms every message and returns the ones no queue accepts;
-    # messaging/RabbitConfig logs both cases
-    publisher-confirm-type: correlated
-    publisher-returns: true
-    template:
-      mandatory: true
+    listener:
+      simple:
+        # A message that still fails after the retries is rejected without going back to
+        # its queue, so RabbitMQ moves it to the dead letter queue (see messaging/RabbitConfig)
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 4        # 1 attempt + 3 retries
+          initial-interval: 1s
+          multiplier: 2          # waits 1s, 2s, 4s
   cloud:
     azure:
       active-directory:

@@ -44,9 +44,9 @@ Backend (cada servicio en su propia terminal):
 docker compose up -d mysql rabbitmq     # MySQL (localhost:3306) y RabbitMQ (localhost:5672), desde la raíz del repo
 cd ReservaFit-Backend
 ./mvnw -pl api-gateway spring-boot:run  # http://localhost:8080, la URL que usa el frontend
-./mvnw -pl ms-reservas spring-boot:run  # :8083 (antes que ms-gimnasios)
+./mvnw -pl ms-gimnasios spring-boot:run # :8082 (antes que ms-reservas)
 ./mvnw -pl ms-usuarios spring-boot:run  # :8081
-./mvnw -pl ms-gimnasios spring-boot:run # :8082
+./mvnw -pl ms-reservas spring-boot:run  # :8083
 ./mvnw test                             # tests de ms-reservas, con H2 en memoria
 ```
 
@@ -54,28 +54,30 @@ cd ReservaFit-Backend
 | --- | --- | --- | --- |
 | `api-gateway` | 8080 | Reenvía cada request según la ruta | (ninguna) |
 | `ms-usuarios` | 8081 | `/api/usuarios/**` | `usuario` |
-| `ms-gimnasios` | 8082 | `/api/gimnasios/**` | `gimnasio`, `horario` |
-| `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva`, `usuario_replica`, `horario_replica` |
+| `ms-gimnasios` | 8082 | `/api/gimnasios/**` | `gimnasio`, `horario`, `reserva_gimnasio` |
+| `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva`, `usuario_replica` |
 | `rabbitmq` | 5672, panel en 15672 | Mensajes entre los servicios | (ninguna) |
 
 Los datos quedan guardados entre reinicios (`docker compose down -v` borra la base). `ms-gimnasios` carga los gimnasios desde su `data.sql` sin duplicarlos.
 
-`ms-reservas` no lee tablas de otros servicios: trabaja con sus copias `usuario_replica` y `horario_replica`, que se llenan con mensajes de RabbitMQ.
+Ningún servicio lee tablas de otro. `ms-reservas` obtiene los usuarios de su copia `usuario_replica`, que se llena con mensajes de RabbitMQ, y les pregunta los horarios a `ms-gimnasios` por HTTP (`client/GymClient`, directo a `GIMNASIOS_URL`, sin pasar por el gateway). Si `ms-gimnasios` no responde, reservar y ver la disponibilidad devuelven 503.
 
 ### RabbitMQ
 
 | Mensaje | Lo publica | Cuándo | Cola | Lo consume |
 | --- | --- | --- | --- | --- |
 | `user.registered` | `ms-usuarios` | En cada login (`POST /api/usuarios/me`) | `reservas.users` | `ms-reservas` → `usuario_replica` |
-| `schedule.published` | `ms-gimnasios` | Al arrancar, uno por horario | `reservas.schedules` | `ms-reservas` → `horario_replica` |
+| `booking.created` | `ms-reservas` | Al crear una reserva (`POST /api/reservas`) | `gimnasios.bookings` | `ms-gimnasios` → `reserva_gimnasio` |
+| `booking.cancelled` | `ms-reservas` | Al cancelar una reserva (`DELETE /api/reservas/{id}`) | `gimnasios.bookings` | `ms-gimnasios` → `reserva_gimnasio` |
 
-- Los mensajes van al exchange topic `reservafit.events`. Cada cola recibe los mensajes cuya routing key calza con su binding (`user.*` o `schedule.*`).
-- Si `ms-reservas` falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a su DLQ (`reservas.users.dlq` o `reservas.schedules.dlq`) a través del exchange `reservafit.dlx`, donde queda guardado.
+- Los mensajes van al exchange topic `reservafit.events`. Cada cola recibe los mensajes cuya routing key calza con su binding (`user.*` o `booking.*`).
+- Las reservas se envían recién cuando quedan guardadas en la base de datos (después del commit), así que una reserva rechazada no genera mensaje. `ms-gimnasios` guarda cada una en `reserva_gimnasio` (con el mismo id de la reserva, así que la cancelación reemplaza la fila) y lo deja en su log junto con cuántas reservas confirmadas tiene el gimnasio.
+- Si el servicio que consume falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a la DLQ de esa cola (`reservas.users.dlq` o `gimnasios.bookings.dlq`) a través del exchange `reservafit.dlx`, donde queda guardado. Por ejemplo, una reserva para un gimnasio que no existe termina en `gimnasios.bookings.dlq`.
 - Si un mensaje no calza con ninguna cola, o RabbitMQ no lo confirma, el servicio que lo envió lo escribe en su log.
 - Los logs salen por consola y en `logs/<servicio>.log`.
 - El panel de RabbitMQ está en http://localhost:15672 (usuario y clave `reservafit`). Ahí se ven las colas, las DLQ y se pueden publicar mensajes de prueba.
-- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en el productor y en `ms-reservas`.
-- Las colas las crea `ms-reservas`. Por eso, al levantar con `./mvnw`, conviene arrancar `ms-reservas` antes que `ms-gimnasios`; si no, los horarios no encuentran cola y hay que reiniciar `ms-gimnasios`. `compose.yaml` ya respeta ese orden.
+- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en el productor y en el consumidor.
+- Cada cola la crea el servicio que la consume: `reservas.users` la crea `ms-reservas` y `gimnasios.bookings` la crea `ms-gimnasios`. Al levantar con `./mvnw`, arranca `ms-gimnasios` antes que `ms-reservas` (que además le pide los horarios). `compose.yaml` ya respeta ese orden.
 
 ## Docker
 
@@ -143,6 +145,7 @@ URL base: `http://localhost:8080`. Todo requiere un token `Bearer`, salvo el cat
 | GET | `/api/gimnasios?comuna=` | Lista gimnasios, con filtro opcional por comuna (sin distinguir mayúsculas) |
 | GET | `/api/gimnasios/{id}` | Detalle del gimnasio (404 si no existe) |
 | GET | `/api/gimnasios/{id}/horarios` | Horarios del gimnasio |
+| GET | `/api/gimnasios/horarios/{id}` | Un horario con los datos de su gimnasio (lo usa `ms-reservas`; 404 si no existe) |
 | GET | `/api/gimnasios/{id}/disponibilidad?fecha=YYYY-MM-DD` | Horarios con el indicador `available` para esa fecha |
 
 ### Usuarios — `/api/usuarios` (requiere token)
@@ -156,7 +159,7 @@ URL base: `http://localhost:8080`. Todo requiere un token `Bearer`, salvo el cat
 
 | Método | Ruta | Descripción |
 | --- | --- | --- |
-| POST | `/api/reservas` | Crea una reserva (201; 400 fecha inválida, 404 horario inexistente, 409 horario ocupado) |
+| POST | `/api/reservas` | Crea una reserva (201; 400 fecha inválida, 404 horario inexistente, 409 horario ocupado, 503 si `ms-gimnasios` no responde) |
 | GET | `/api/reservas/mias` | Reservas del usuario actual, primero las próximas |
 | DELETE | `/api/reservas/{id}` | Cancela una reserva (409 si ya estaba cancelada o el horario ya comenzó) |
 

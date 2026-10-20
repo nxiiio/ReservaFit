@@ -11,59 +11,60 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import cl.nxiiio.reservafit.reservas.client.GymClient;
+import cl.nxiiio.reservafit.reservas.client.ScheduleInfo;
 import cl.nxiiio.reservafit.reservas.dto.BookingResponse;
 import cl.nxiiio.reservafit.reservas.dto.CreateBookingRequest;
 import cl.nxiiio.reservafit.reservas.dto.SlotAvailabilityResponse;
 import cl.nxiiio.reservafit.reservas.exception.AlreadyCancelledException;
 import cl.nxiiio.reservafit.reservas.exception.BookingAlreadyStartedException;
 import cl.nxiiio.reservafit.reservas.exception.BookingNotFoundException;
-import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
-import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
 import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
 import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
-import cl.nxiiio.reservafit.reservas.model.HorarioReplica;
+import cl.nxiiio.reservafit.reservas.messaging.BookingEvent;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
 import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.BookingRepository;
-import cl.nxiiio.reservafit.reservas.repository.ScheduleReplicaRepository;
 import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
 
-// Users and schedules belong to other services: this one reads its local copies of them
-// (UsuarioReplica, HorarioReplica) instead of calling ms-usuarios or ms-gimnasios
+// Users and schedules belong to other services. Users are read from the local copy that
+// RabbitMQ keeps up to date (UsuarioReplica); schedules are asked to ms-gimnasios (GymClient).
+// Every booking that is created or canceled is sent to RabbitMQ (BookingEventPublisher).
 @Service
 public class BookingService {
 
     public static final int MAX_DAYS_AHEAD = 30;
 
     private final BookingRepository bookingRepository;
-    private final ScheduleReplicaRepository scheduleRepository;
     private final UserReplicaRepository userRepository;
+    private final GymClient gymClient;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public BookingService(
             BookingRepository bookingRepository,
-            ScheduleReplicaRepository scheduleRepository,
             UserReplicaRepository userRepository,
+            GymClient gymClient,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.bookingRepository = bookingRepository;
-        this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
+        this.gymClient = gymClient;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
     @Transactional(readOnly = true)
     public List<SlotAvailabilityResponse> getAvailability(Long gymId, LocalDate date) {
-        // Gyms are only known here through their schedules, so a gym without any is a 404
-        List<HorarioReplica> schedules = scheduleRepository.findByGimnasioIdOrderByHoraInicioAsc(gymId);
-        if (schedules.isEmpty()) {
-            throw new GymNotFoundException(gymId);
-        }
+        // 404 (GymNotFoundException) when ms-gimnasios does not know the gym
+        List<ScheduleInfo> schedules = gymClient.findSchedulesOfGym(gymId);
 
         Set<Long> taken = Set.copyOf(bookingRepository.findActiveScheduleIds(gymId, date));
 
@@ -73,8 +74,8 @@ public class BookingService {
         return schedules.stream()
                 .map(schedule -> new SlotAvailabilityResponse(
                         schedule.getId(),
-                        schedule.getHoraInicio(),
-                        schedule.getHoraFin(),
+                        schedule.getStartTime(),
+                        schedule.getEndTime(),
                         dateBookable && !taken.contains(schedule.getId()) && !hasStarted(schedule, date)))
                 .toList();
     }
@@ -82,7 +83,7 @@ public class BookingService {
     @Transactional
     public BookingResponse create(String oid, CreateBookingRequest request) {
         UsuarioReplica user = findUser(oid);
-        HorarioReplica schedule = findSchedule(request.getScheduleId());
+        ScheduleInfo schedule = gymClient.findSchedule(request.getScheduleId());
         LocalDate date = request.getDate();
 
         validateBookingDate(schedule, date);
@@ -93,7 +94,7 @@ public class BookingService {
 
         Reserva booking = new Reserva();
         booking.setUsuarioId(user.getId());
-        booking.setGimnasioId(schedule.getGimnasioId());
+        booking.setGimnasioId(schedule.getGymId());
         booking.setHorarioId(schedule.getId());
         booking.setFecha(date);
         booking.setEstado(EstadoReserva.CONFIRMADA);
@@ -107,6 +108,9 @@ public class BookingService {
             throw new SlotAlreadyBookedException();
         }
 
+        // Sent to RabbitMQ once the booking is committed (booking.created)
+        eventPublisher.publishEvent(toEvent(booking));
+
         return toResponse(booking, schedule);
     }
 
@@ -116,18 +120,19 @@ public class BookingService {
         UsuarioReplica user = findUser(oid);
         LocalDate today = LocalDate.now(clock);
 
-        // Already ordered by date and start time, oldest first
-        List<Reserva> bookings = bookingRepository.findByUserOrderedByDateAndTime(user.getId());
+        List<Reserva> bookings = new ArrayList<>(bookingRepository.findByUsuarioIdOrderByFechaAsc(user.getId()));
 
-        // Schedule copy of each booking, by schedule id, to build the responses
-        List<Long> scheduleIds = bookings.stream()
+        // Schedule of each booking, by schedule id, asked once per schedule to ms-gimnasios
+        Map<Long, ScheduleInfo> schedulesById = bookings.stream()
                 .map(Reserva::getHorarioId)
                 .distinct()
-                .toList();
-        Map<Long, HorarioReplica> schedulesById = scheduleRepository.findAllById(scheduleIds).stream()
-                .collect(Collectors.toMap(HorarioReplica::getId, schedule -> schedule));
+                .map(gymClient::findSchedule)
+                .collect(Collectors.toMap(ScheduleInfo::getId, schedule -> schedule));
 
-        // Upcoming keeps the query order (soonest first)
+        // Oldest first: by date, and by start time within the same date
+        bookings.sort((first, second) -> compareByDateAndTime(first, second, schedulesById));
+
+        // Upcoming keeps that order (soonest first)
         List<Reserva> upcoming = bookings.stream()
                 .filter(booking -> isUpcoming(booking, today))
                 .toList();
@@ -149,7 +154,7 @@ public class BookingService {
         Reserva booking = bookingRepository.findById(bookingId)
                 .filter(b -> b.getUsuarioId().equals(user.getId()))
                 .orElseThrow(() -> new BookingNotFoundException(bookingId));
-        HorarioReplica schedule = findSchedule(booking.getHorarioId());
+        ScheduleInfo schedule = gymClient.findSchedule(booking.getHorarioId());
 
         if (booking.getEstado() == EstadoReserva.CANCELADA) {
             throw new AlreadyCancelledException();
@@ -161,6 +166,9 @@ public class BookingService {
         booking.setEstado(EstadoReserva.CANCELADA);
         booking.setActiva(null);
 
+        // Sent to RabbitMQ once the cancellation is committed (booking.cancelled)
+        eventPublisher.publishEvent(toEvent(booking));
+
         return toResponse(booking, schedule);
     }
 
@@ -168,11 +176,7 @@ public class BookingService {
         return userRepository.findByMicrosoftOid(oid).orElseThrow(UserNotFoundException::new);
     }
 
-    private HorarioReplica findSchedule(Long scheduleId) {
-        return scheduleRepository.findById(scheduleId).orElseThrow(() -> new ScheduleNotFoundException(scheduleId));
-    }
-
-    private void validateBookingDate(HorarioReplica schedule, LocalDate date) {
+    private void validateBookingDate(ScheduleInfo schedule, LocalDate date) {
         LocalDate today = LocalDate.now(clock);
 
         if (date.isBefore(today)) {
@@ -193,16 +197,38 @@ public class BookingService {
     }
 
     // True when the slot's date has passed, or it is today and the slot already began
-    private boolean hasStarted(HorarioReplica schedule, LocalDate date) {
+    private boolean hasStarted(ScheduleInfo schedule, LocalDate date) {
         LocalDate today = LocalDate.now(clock);
         return date.isBefore(today)
-                || (date.equals(today) && !schedule.getHoraInicio().isAfter(LocalTime.now(clock)));
+                || (date.equals(today) && !schedule.getStartTime().isAfter(LocalTime.now(clock)));
+    }
+
+    // Negative when "first" goes before "second", positive when after, 0 when they are equal
+    private int compareByDateAndTime(Reserva first, Reserva second, Map<Long, ScheduleInfo> schedulesById) {
+        int byDate = first.getFecha().compareTo(second.getFecha());
+        if (byDate != 0) {
+            return byDate;
+        }
+
+        LocalTime firstStart = schedulesById.get(first.getHorarioId()).getStartTime();
+        LocalTime secondStart = schedulesById.get(second.getHorarioId()).getStartTime();
+        return firstStart.compareTo(secondStart);
     }
 
     // A confirmed booking can be canceled until its slot starts
-    private BookingResponse toResponse(Reserva booking, HorarioReplica schedule) {
+    private BookingResponse toResponse(Reserva booking, ScheduleInfo schedule) {
         boolean cancellable = booking.getEstado() == EstadoReserva.CONFIRMADA
                 && !hasStarted(schedule, booking.getFecha());
         return BookingResponse.from(booking, schedule, cancellable);
+    }
+
+    private BookingEvent toEvent(Reserva booking) {
+        return new BookingEvent(
+                booking.getId(),
+                booking.getUsuarioId(),
+                booking.getGimnasioId(),
+                booking.getHorarioId(),
+                booking.getFecha(),
+                booking.getEstado().name());
     }
 }

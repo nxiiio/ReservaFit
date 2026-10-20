@@ -38,7 +38,7 @@ public class Reserva {
     private Long id;
 
     // Plain ids: users, gyms and schedules live in other services, so there are no JPA
-    // relations or foreign keys to them (see UsuarioReplica and HorarioReplica)
+    // relations or foreign keys to them
     @Column(name = "usuario_id", nullable = false)
     private Long usuarioId;
 

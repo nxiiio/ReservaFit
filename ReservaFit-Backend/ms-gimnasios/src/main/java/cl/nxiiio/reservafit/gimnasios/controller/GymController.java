@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import cl.nxiiio.reservafit.gimnasios.dto.GymResponse;
+import cl.nxiiio.reservafit.gimnasios.dto.ScheduleDetailResponse;
 import cl.nxiiio.reservafit.gimnasios.dto.ScheduleResponse;
 import cl.nxiiio.reservafit.gimnasios.service.GymService;
 
@@ -39,5 +40,11 @@ public class GymController {
         return gymService.findSchedules(id).stream()
                 .map(ScheduleResponse::from)
                 .toList();
+    }
+
+    // Used by ms-reservas, which calls this service directly (not through the gateway)
+    @GetMapping("/horarios/{scheduleId}")
+    public ScheduleDetailResponse getSchedule(@PathVariable Long scheduleId) {
+        return ScheduleDetailResponse.from(gymService.findSchedule(scheduleId));
     }
 }

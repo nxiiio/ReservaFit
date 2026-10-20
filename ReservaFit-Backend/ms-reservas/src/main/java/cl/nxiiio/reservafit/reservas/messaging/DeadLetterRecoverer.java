@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 // Runs when a message has failed every retry (see spring.rabbitmq.listener.simple.retry).
 // It logs the message and then rejects it without sending it back to its queue, so RabbitMQ
-// moves it to that queue's dead letter queue (reservas.users.dlq or reservas.schedules.dlq).
+// moves it to that queue's dead letter queue (reservas.users.dlq).
 // The message stays there, visible in the RabbitMQ panel, so it can be inspected or re-sent.
 // Spring Boot uses this bean automatically because it is the only MessageRecoverer.
 @Component

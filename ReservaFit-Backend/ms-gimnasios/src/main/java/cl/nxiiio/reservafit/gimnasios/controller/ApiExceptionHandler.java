@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import cl.nxiiio.reservafit.gimnasios.exception.GymNotFoundException;
+import cl.nxiiio.reservafit.gimnasios.exception.ScheduleNotFoundException;
 
 // Error bodies are field -> message maps so the frontend can show each message next to its input.
 @RestControllerAdvice
@@ -37,6 +38,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Map<String, String> handleGymNotFound() {
         return Map.of("error", "Gimnasio no encontrado");
+    }
+
+    @ExceptionHandler(ScheduleNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, String> handleScheduleNotFound() {
+        return Map.of("error", "Horario no encontrado");
     }
 
     // Missing or malformed query/path parameters, e.g. ?fecha=not-a-date

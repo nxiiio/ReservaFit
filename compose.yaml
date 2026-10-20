@@ -81,15 +81,6 @@ services:
       context: ./ReservaFit-Backend
       args:
         MODULE: ms-gimnasios
-    # Publishes its schedules on startup, and the queues are created by ms-reservas,
-    # so it starts after ms-reservas. (depends_on replaces the shared one, so it repeats it.)
-    depends_on:
-      mysql:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      ms-reservas:
-        condition: service_healthy
     healthcheck:
       # Public and hits the database, so a 200 means the service is serving
       test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8082/api/gimnasios"]
@@ -104,6 +95,19 @@ services:
       context: ./ReservaFit-Backend
       args:
         MODULE: ms-reservas
+    environment:
+      <<: *backend-env
+      # Asks ms-gimnasios for the schedules over HTTP
+      GIMNASIOS_URL: http://ms-gimnasios:8082
+    # Needs ms-gimnasios to answer, and publishes the bookings into the queue that
+    # ms-gimnasios creates, so it starts after it. (depends_on replaces the shared one, so it repeats it.)
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ms-gimnasios:
+        condition: service_healthy
     healthcheck:
       # Every endpoint but availability needs a token, so any HTTP answer means it is serving
       test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8083/api/reservas/mias"]

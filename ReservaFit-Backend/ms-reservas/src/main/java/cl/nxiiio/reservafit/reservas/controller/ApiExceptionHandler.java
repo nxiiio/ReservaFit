@@ -16,6 +16,7 @@ import cl.nxiiio.reservafit.reservas.exception.AlreadyCancelledException;
 import cl.nxiiio.reservafit.reservas.exception.BookingAlreadyStartedException;
 import cl.nxiiio.reservafit.reservas.exception.BookingNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
+import cl.nxiiio.reservafit.reservas.exception.GymServiceUnavailableException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
@@ -99,5 +100,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public Map<String, String> handleBookingAlreadyStarted() {
         return Map.of("error", "Esta reserva ya comenzó y no se puede cancelar");
+    }
+
+    // ms-gimnasios did not answer, so schedules cannot be checked right now
+    @ExceptionHandler(GymServiceUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public Map<String, String> handleGymServiceUnavailable() {
+        return Map.of("error", "No se pudo consultar el gimnasio, intenta más tarde");
     }
 }

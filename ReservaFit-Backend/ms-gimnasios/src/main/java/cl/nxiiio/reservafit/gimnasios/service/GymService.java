@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import cl.nxiiio.reservafit.gimnasios.exception.GymNotFoundException;
+import cl.nxiiio.reservafit.gimnasios.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.gimnasios.model.Gimnasio;
 import cl.nxiiio.reservafit.gimnasios.model.Horario;
 import cl.nxiiio.reservafit.gimnasios.repository.GymRepository;
@@ -41,5 +42,10 @@ public class GymService {
             throw new GymNotFoundException(gymId);
         }
         return scheduleRepository.findByGimnasioIdOrderByHoraInicioAsc(gymId);
+    }
+
+    public Horario findSchedule(Long scheduleId) {
+        return scheduleRepository.findByIdWithGym(scheduleId)
+                .orElseThrow(() -> new ScheduleNotFoundException(scheduleId));
     }
 }

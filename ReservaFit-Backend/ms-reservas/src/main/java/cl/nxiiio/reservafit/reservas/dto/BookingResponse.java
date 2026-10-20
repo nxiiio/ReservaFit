@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-import cl.nxiiio.reservafit.reservas.model.HorarioReplica;
+import cl.nxiiio.reservafit.reservas.client.ScheduleInfo;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -30,17 +30,17 @@ public class BookingResponse {
     private boolean cancellable;
     private LocalDateTime createdAt;
 
-    // Gym data comes from the schedule copy, since gyms live in ms-gimnasios
-    public static BookingResponse from(Reserva booking, HorarioReplica schedule, boolean cancellable) {
+    // Gym data comes from ms-gimnasios, together with the schedule (see GymClient)
+    public static BookingResponse from(Reserva booking, ScheduleInfo schedule, boolean cancellable) {
         return new BookingResponse(
                 booking.getId(),
                 booking.getGimnasioId(),
-                schedule.getGimnasioNombre(),
-                schedule.getGimnasioComuna(),
-                schedule.getGimnasioImagenUrl(),
+                schedule.getGymName(),
+                schedule.getGymComuna(),
+                schedule.getGymImageUrl(),
                 booking.getHorarioId(),
-                schedule.getHoraInicio(),
-                schedule.getHoraFin(),
+                schedule.getStartTime(),
+                schedule.getEndTime(),
                 booking.getFecha(),
                 booking.getEstado().name(),
                 cancellable,

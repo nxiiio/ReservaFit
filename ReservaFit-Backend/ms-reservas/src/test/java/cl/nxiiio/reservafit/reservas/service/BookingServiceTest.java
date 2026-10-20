@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import cl.nxiiio.reservafit.reservas.client.ScheduleInfo;
 import cl.nxiiio.reservafit.reservas.config.ClockConfig;
 import cl.nxiiio.reservafit.reservas.dto.BookingResponse;
 import cl.nxiiio.reservafit.reservas.dto.CreateBookingRequest;
@@ -29,12 +31,11 @@ import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
 import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
+import cl.nxiiio.reservafit.reservas.messaging.BookingEvent;
 import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
-import cl.nxiiio.reservafit.reservas.model.HorarioReplica;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
 import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.BookingRepository;
-import cl.nxiiio.reservafit.reservas.repository.ScheduleReplicaRepository;
 import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
 
 @SpringBootTest
@@ -49,29 +50,31 @@ class BookingServiceTest {
     private static final String OID_B = "oid-user-b";
 
     @Autowired private BookingRepository bookingRepository;
-    @Autowired private ScheduleReplicaRepository scheduleRepository;
     @Autowired private UserReplicaRepository userRepository;
+    private final FakeGymClient gymClient = new FakeGymClient();
+
+    // What BookingService announces (BookingEventPublisher would send each one to RabbitMQ)
+    private final List<Object> publishedEvents = new ArrayList<>();
 
     private BookingService service;
     private UsuarioReplica userA;
-    private HorarioReplica earlySlot; // gym 1, 07:00
-    private HorarioReplica eveningSlot; // gym 1, 18:00
+    private ScheduleInfo earlySlot; // gym 1, 07:00
+    private ScheduleInfo eveningSlot; // gym 1, 18:00
 
     @BeforeEach
     void setUp() {
         service = serviceAt(CLOCK);
         userA = userRepository.save(user(1L, OID_A));
         userRepository.save(user(2L, OID_B));
-        // Seeded by src/test/resources/data.sql
-        List<HorarioReplica> slots = scheduleRepository.findByGimnasioIdOrderByHoraInicioAsc(1L);
+        List<ScheduleInfo> slots = gymClient.findSchedulesOfGym(FakeGymClient.GYM_ID);
         earlySlot = slots.get(0);
         eveningSlot = slots.get(2);
-        assertEquals(LocalTime.of(7, 0), earlySlot.getHoraInicio());
-        assertEquals(LocalTime.of(18, 0), eveningSlot.getHoraInicio());
+        assertEquals(LocalTime.of(7, 0), earlySlot.getStartTime());
+        assertEquals(LocalTime.of(18, 0), eveningSlot.getStartTime());
     }
 
     private BookingService serviceAt(Clock clock) {
-        return new BookingService(bookingRepository, scheduleRepository, userRepository, clock);
+        return new BookingService(bookingRepository, userRepository, gymClient, publishedEvents::add, clock);
     }
 
     private static UsuarioReplica user(Long id, String oid) {
@@ -82,7 +85,7 @@ class BookingServiceTest {
         return user;
     }
 
-    private BookingResponse book(String oid, HorarioReplica slot, LocalDate date) {
+    private BookingResponse book(String oid, ScheduleInfo slot, LocalDate date) {
         return service.create(oid, new CreateBookingRequest(slot.getId(), date));
     }
 
@@ -95,6 +98,33 @@ class BookingServiceTest {
         assertEquals(earlySlot.getId(), booking.getScheduleId());
         assertTrue(booking.isCancellable()); // Monday -> Thursday
         assertNotNull(booking.getCreatedAt());
+    }
+
+    @Test
+    void announcesCreatedAndCanceledBookings() {
+        BookingResponse booking = book(OID_A, earlySlot, TODAY.plusDays(2));
+        service.cancel(OID_A, booking.getId());
+
+        assertEquals(2, publishedEvents.size());
+
+        BookingEvent created = (BookingEvent) publishedEvents.get(0);
+        assertEquals(booking.getId(), created.getBookingId());
+        assertEquals(userA.getId(), created.getUserId());
+        assertEquals(1L, created.getGymId());
+        assertEquals(earlySlot.getId(), created.getScheduleId());
+        assertEquals(TODAY.plusDays(2), created.getDate());
+        assertEquals("CONFIRMADA", created.getStatus());
+
+        BookingEvent canceled = (BookingEvent) publishedEvents.get(1);
+        assertEquals(booking.getId(), canceled.getBookingId());
+        assertEquals("CANCELADA", canceled.getStatus());
+    }
+
+    @Test
+    void rejectedBookingsAreNotAnnounced() {
+        assertThrows(InvalidBookingDateException.class, () -> book(OID_A, earlySlot, TODAY.minusDays(1)));
+
+        assertTrue(publishedEvents.isEmpty());
     }
 
     @Test
@@ -174,7 +204,7 @@ class BookingServiceTest {
         assertThrows(GymNotFoundException.class, () -> service.getAvailability(9999L, TODAY));
     }
 
-    private static SlotAvailabilityResponse slot(List<SlotAvailabilityResponse> slots, HorarioReplica schedule) {
+    private static SlotAvailabilityResponse slot(List<SlotAvailabilityResponse> slots, ScheduleInfo schedule) {
         return slots.stream().filter(s -> s.getId().equals(schedule.getId())).findFirst().orElseThrow();
     }
 
@@ -198,7 +228,7 @@ class BookingServiceTest {
     private Reserva pastBooking(LocalDate date) {
         Reserva booking = new Reserva();
         booking.setUsuarioId(userA.getId());
-        booking.setGimnasioId(earlySlot.getGimnasioId());
+        booking.setGimnasioId(earlySlot.getGymId());
         booking.setHorarioId(earlySlot.getId());
         booking.setFecha(date);
         booking.setEstado(EstadoReserva.CONFIRMADA);

@@ -1,59 +1,74 @@
 package cl.nxiiio.reservafit.gimnasios.messaging;
 
-import java.nio.charset.StandardCharsets;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.ReturnedMessage;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
-import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-// RabbitMQ setup of this service, which only publishes. The queues belong to ms-reservas,
-// which declares them; this service only needs the exchange it publishes to.
+// Declares the queue this service reads, its dead letter queue and both exchanges.
+// Spring creates what is missing when it connects (declaring something that exists does nothing).
+// The queue belongs to this service because it is the one that consumes it.
 @Configuration
 public class RabbitConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(RabbitConfig.class);
+    // ---------- Exchanges ----------
 
-    // Created in RabbitMQ on connect if it does not exist yet
+    // Normal messages: routes by pattern (binding keys like "booking.*")
     @Bean
     public TopicExchange eventsExchange() {
         return new TopicExchange(RabbitNames.EVENTS_EXCHANGE);
     }
 
-    // Messages travel as JSON. Spring Boot uses this bean when sending.
+    // Rejected messages: routes by exact name to each dead letter queue
+    @Bean
+    public DirectExchange deadLetterExchange() {
+        return new DirectExchange(RabbitNames.DEAD_LETTER_EXCHANGE);
+    }
+
+    // ---------- Bookings ----------
+
+    // A message rejected here is re-sent to reservafit.dlx with the routing key "gimnasios.bookings.dlq"
+    @Bean
+    public Queue bookingsQueue() {
+        return QueueBuilder.durable(RabbitNames.BOOKINGS_QUEUE)
+                .deadLetterExchange(RabbitNames.DEAD_LETTER_EXCHANGE)
+                .deadLetterRoutingKey(RabbitNames.BOOKINGS_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Binding bookingsBinding() {
+        return BindingBuilder.bind(bookingsQueue())
+                .to(eventsExchange())
+                .with(RabbitNames.BOOKINGS_BINDING);
+    }
+
+    @Bean
+    public Queue bookingsDeadLetterQueue() {
+        return QueueBuilder.durable(RabbitNames.BOOKINGS_DLQ).build();
+    }
+
+    @Bean
+    public Binding bookingsDeadLetterBinding() {
+        return BindingBuilder.bind(bookingsDeadLetterQueue())
+                .to(deadLetterExchange())
+                .with(RabbitNames.BOOKINGS_DLQ);
+    }
+
+    // ---------- Message format ----------
+
+    // Messages travel as JSON. The producer's event class lives in another package, so the
+    // message is always read into the class of the listener's parameter (this service's copy)
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new JacksonJsonMessageConverter();
-    }
-
-    // Logs the messages RabbitMQ could not deliver. Needs, in application.yaml,
-    // spring.rabbitmq.publisher-returns, publisher-confirm-type: correlated and template.mandatory.
-    @Bean
-    public RabbitTemplateCustomizer logUndeliveredMessages() {
-        return rabbitTemplate -> {
-            // No queue matched the routing key, so RabbitMQ sent the message back
-            rabbitTemplate.setReturnsCallback(this::logReturnedMessage);
-
-            // RabbitMQ did not accept the message (nack)
-            rabbitTemplate.setConfirmCallback(this::logRejectedPublish);
-        };
-    }
-
-    private void logReturnedMessage(ReturnedMessage returned) {
-        String body = new String(returned.getMessage().getBody(), StandardCharsets.UTF_8);
-        log.warn("Message without a destination queue: exchange={} routingKey={} reason={} body={}",
-                returned.getExchange(), returned.getRoutingKey(), returned.getReplyText(), body);
-    }
-
-    private void logRejectedPublish(CorrelationData correlation, boolean ack, String cause) {
-        if (!ack) {
-            log.error("RabbitMQ did not confirm a published message: cause={}", cause);
-        }
+        JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter();
+        converter.setAlwaysConvertToInferredType(true);
+        return converter;
     }
 }
