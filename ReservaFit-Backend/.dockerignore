@@ -1,0 +1,19 @@
+# Build output is produced inside the image
+**/target/
+
+# Maven wrapper: the build stage uses the Maven that ships with the base image
+.mvn/
+mvnw
+mvnw.cmd
+
+# Local files
+.env*
+HELP.md
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+Dockerfile
+.dockerignore

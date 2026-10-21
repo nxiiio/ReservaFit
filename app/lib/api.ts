@@ -4,7 +4,8 @@ import type { Gym, SlotAvailability } from "../types/gym";
 import type { UserProfile } from "../types/user";
 import type { ProfileData } from "./profile-schema";
 
-export const API_BASE_URL = "http://localhost:8080";
+// Inlined by Vite at build time; falls back to the local backend when not set
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
 const api = axios.create({ baseURL: API_BASE_URL });
 

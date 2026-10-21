@@ -1,0 +1,29 @@
+# Used by the frontend image (root Dockerfile). The backend has its own
+# ReservaFit-Backend/.dockerignore.
+
+# Version control and local tooling
+.git
+.gitignore
+.gitattributes
+.claude
+.atl
+
+# Dependencies and build output: both are produced inside the image
+node_modules
+build
+dist
+.react-router
+coverage
+*.tsbuildinfo
+
+# Environment files: values reach the build as build args, never from disk
+.env*
+
+# Not part of the frontend image
+ReservaFit-Backend
+docs
+*.md
+compose*.yaml
+compose*.yml
+Dockerfile
+.dockerignore
