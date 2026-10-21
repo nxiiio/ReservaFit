@@ -27,17 +27,14 @@ import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
-import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
 import cl.nxiiio.reservafit.reservas.messaging.BookingEvent;
 import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
-import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.BookingRepository;
-import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
 import lombok.RequiredArgsConstructor;
 
-// Users and schedules belong to other services. Users are read from the local copy that
-// RabbitMQ keeps up to date (UsuarioReplica); schedules are asked to ms-gimnasios (GymClient).
+// Each booking belongs to the user's Microsoft oid (from the token), so this service keeps
+// no user data. Schedules belong to ms-gimnasios, which is asked over HTTP (GymClient).
 // Every booking that is created or canceled is sent to RabbitMQ (BookingEventPublisher).
 // @RequiredArgsConstructor (Lombok) writes the constructor that receives the final fields.
 @Service
@@ -47,7 +44,6 @@ public class BookingService {
     public static final int MAX_DAYS_AHEAD = 30;
 
     private final BookingRepository bookingRepository;
-    private final UserReplicaRepository userRepository;
     private final GymClient gymClient;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
@@ -73,7 +69,6 @@ public class BookingService {
 
     @Transactional
     public BookingResponse create(String oid, CreateBookingRequest request) {
-        UsuarioReplica user = findUser(oid);
         ScheduleInfo schedule = findSchedule(request.getScheduleId());
         LocalDate date = request.getDate();
         LocalDate today = LocalDate.now(clock);
@@ -93,7 +88,7 @@ public class BookingService {
         }
 
         Reserva booking = new Reserva();
-        booking.setUsuarioId(user.getId());
+        booking.setUsuarioOid(oid);
         booking.setGimnasioId(schedule.getGymId());
         booking.setHorarioId(schedule.getId());
         booking.setFecha(date);
@@ -117,10 +112,9 @@ public class BookingService {
     // Upcoming confirmed bookings first (soonest first), then past and canceled ones (newest first)
     @Transactional(readOnly = true)
     public List<BookingResponse> findMine(String oid) {
-        UsuarioReplica user = findUser(oid);
         LocalDate today = LocalDate.now(clock);
 
-        List<Reserva> bookings = new ArrayList<>(bookingRepository.findByUsuarioIdOrderByFechaAsc(user.getId()));
+        List<Reserva> bookings = new ArrayList<>(bookingRepository.findByUsuarioOidOrderByFechaAsc(oid));
 
         // Schedule of each booking, by schedule id, asked once per schedule to ms-gimnasios
         Map<Long, ScheduleInfo> schedulesById = bookings.stream()
@@ -152,9 +146,9 @@ public class BookingService {
 
     @Transactional
     public BookingResponse cancel(String oid, Long bookingId) {
-        UsuarioReplica user = findUser(oid);
+        // Another user's booking answers 404 too, so it does not reveal that it exists
         Reserva booking = bookingRepository.findById(bookingId)
-                .filter(b -> b.getUsuarioId().equals(user.getId()))
+                .filter(b -> b.getUsuarioOid().equals(oid))
                 .orElseThrow(() -> new BookingNotFoundException(bookingId));
         ScheduleInfo schedule = findSchedule(booking.getHorarioId());
 
@@ -172,10 +166,6 @@ public class BookingService {
         eventPublisher.publishEvent(BookingEvent.from(booking));
 
         return toResponse(booking, schedule);
-    }
-
-    private UsuarioReplica findUser(String oid) {
-        return userRepository.findByMicrosoftOid(oid).orElseThrow(UserNotFoundException::new);
     }
 
     // Empty when ms-gimnasios answers 404

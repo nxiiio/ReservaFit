@@ -18,7 +18,8 @@ import lombok.Setter;
 public class BookingEvent {
 
     private Long bookingId;
-    private Long userId;
+    // The user's Microsoft oid
+    private String userOid;
     private Long gymId;
     private Long scheduleId;
     private LocalDate date;
@@ -29,7 +30,7 @@ public class BookingEvent {
     public static BookingEvent from(Reserva booking) {
         return new BookingEvent(
                 booking.getId(),
-                booking.getUsuarioId(),
+                booking.getUsuarioOid(),
                 booking.getGimnasioId(),
                 booking.getHorarioId(),
                 booking.getFecha(),

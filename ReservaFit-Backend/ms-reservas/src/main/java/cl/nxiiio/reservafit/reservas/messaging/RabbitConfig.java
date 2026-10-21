@@ -2,11 +2,6 @@ package cl.nxiiio.reservafit.reservas.messaging;
 
 import java.nio.charset.StandardCharsets;
 
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.DirectExchange;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
@@ -18,70 +13,23 @@ import org.springframework.context.annotation.Configuration;
 
 import lombok.extern.slf4j.Slf4j;
 
-// Declares the queue this service reads, its dead letter queue and both exchanges.
-// Spring creates what is missing when it connects (declaring something that exists does nothing).
-// The users queue belongs to this service because it is the one that consumes it; the
-// bookings queue that this service publishes to belongs to ms-gimnasios.
+// RabbitMQ setup of this service, which only publishes. The bookings queue belongs to
+// ms-gimnasios, which declares it; this service only needs the exchange it publishes to.
 @Configuration
 @Slf4j
 public class RabbitConfig {
 
-    // ---------- Exchanges ----------
-
-    // Normal messages: routes by pattern (binding keys like "user.*" or "booking.*")
+    // Created in RabbitMQ on connect if it does not exist yet
     @Bean
     public TopicExchange eventsExchange() {
         return new TopicExchange(RabbitNames.EVENTS_EXCHANGE);
     }
 
-    // Rejected messages: routes by exact name to each dead letter queue
-    @Bean
-    public DirectExchange deadLetterExchange() {
-        return new DirectExchange(RabbitNames.DEAD_LETTER_EXCHANGE);
-    }
-
-    // ---------- Users ----------
-
-    // A message rejected here is re-sent to reservafit.dlx with the routing key "reservas.users.dlq"
-    @Bean
-    public Queue usersQueue() {
-        return QueueBuilder.durable(RabbitNames.USERS_QUEUE)
-                .deadLetterExchange(RabbitNames.DEAD_LETTER_EXCHANGE)
-                .deadLetterRoutingKey(RabbitNames.USERS_DLQ)
-                .build();
-    }
-
-    @Bean
-    public Binding usersBinding() {
-        return BindingBuilder.bind(usersQueue())
-                .to(eventsExchange())
-                .with(RabbitNames.USERS_BINDING);
-    }
-
-    @Bean
-    public Queue usersDeadLetterQueue() {
-        return QueueBuilder.durable(RabbitNames.USERS_DLQ).build();
-    }
-
-    @Bean
-    public Binding usersDeadLetterBinding() {
-        return BindingBuilder.bind(usersDeadLetterQueue())
-                .to(deadLetterExchange())
-                .with(RabbitNames.USERS_DLQ);
-    }
-
-    // ---------- Message format ----------
-
-    // Messages travel as JSON, both ways. The producer's event classes live in other packages,
-    // so a message is always read into the class of the listener's parameter (this service's copy)
+    // Messages travel as JSON. Spring Boot uses this bean when sending.
     @Bean
     public MessageConverter jsonMessageConverter() {
-        JacksonJsonMessageConverter converter = new JacksonJsonMessageConverter();
-        converter.setAlwaysConvertToInferredType(true);
-        return converter;
+        return new JacksonJsonMessageConverter();
     }
-
-    // ---------- Undelivered messages (when publishing) ----------
 
     // Logs the messages RabbitMQ could not deliver. Needs, in application.yaml,
     // spring.rabbitmq.publisher-returns, publisher-confirm-type: correlated and template.mandatory.

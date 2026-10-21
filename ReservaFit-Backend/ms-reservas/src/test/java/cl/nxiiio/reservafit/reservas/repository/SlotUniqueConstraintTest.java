@@ -23,8 +23,8 @@ class SlotUniqueConstraintTest {
     private JdbcTemplate jdbc;
 
     private void insertBooking(String estado, Boolean activa) {
-        jdbc.update("insert into reserva (usuario_id, gimnasio_id, horario_id, fecha, estado, activa) "
-                + "values (1, 1, 1, DATE '2026-10-01', ?, ?)", estado, activa);
+        jdbc.update("insert into reserva (usuario_oid, gimnasio_id, horario_id, fecha, estado, activa) "
+                + "values ('oid-user-a', 1, 1, DATE '2026-10-01', ?, ?)", estado, activa);
     }
 
     @Test

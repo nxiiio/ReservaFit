@@ -19,7 +19,8 @@ public class BookingEvent {
     // ms-reservas' own booking id: used as the id of this service's record
     private Long bookingId;
 
-    private Long userId;
+    // The user's Microsoft oid
+    private String userOid;
     private Long gymId;
     private Long scheduleId;
     private LocalDate date;

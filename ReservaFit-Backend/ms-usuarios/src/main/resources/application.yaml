@@ -15,18 +15,6 @@ spring:
     hibernate:
       # Creates/updates only the tables of this service's entities
       ddl-auto: update
-  # RabbitMQ (this service publishes). Defaults match compose.yaml.
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: 5672
-    username: ${RABBITMQ_USERNAME:reservafit}
-    password: ${RABBITMQ_PASSWORD:reservafit}
-    # RabbitMQ confirms every message and returns the ones no queue accepts;
-    # messaging/RabbitConfig logs both cases
-    publisher-confirm-type: correlated
-    publisher-returns: true
-    template:
-      mandatory: true
   cloud:
     azure:
       active-directory:

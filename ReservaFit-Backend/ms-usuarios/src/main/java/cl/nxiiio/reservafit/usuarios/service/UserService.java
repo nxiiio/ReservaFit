@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import cl.nxiiio.reservafit.usuarios.dto.CompleteProfileRequest;
 import cl.nxiiio.reservafit.usuarios.exception.RutAlreadyRegisteredException;
 import cl.nxiiio.reservafit.usuarios.exception.UserNotFoundException;
-import cl.nxiiio.reservafit.usuarios.messaging.UserEventPublisher;
 import cl.nxiiio.reservafit.usuarios.model.Usuario;
 import cl.nxiiio.reservafit.usuarios.repository.UserRepository;
 import lombok.AllArgsConstructor;
@@ -28,21 +27,15 @@ public class UserService {
     }
 
     private final UserRepository repository;
-    private final UserEventPublisher userEventPublisher;
 
     // Not @Transactional on purpose: saveAndFlush runs in its own transaction, so a
     // unique-constraint violation from a concurrent first login leaves us free to re-read.
     public RegistrationResult getOrCreate(Jwt jwt) {
         String oid = jwt.getClaimAsString("oid");
 
-        RegistrationResult result = repository.findByMicrosoftOid(oid)
+        return repository.findByMicrosoftOid(oid)
                 .map(user -> new RegistrationResult(user, false))
                 .orElseGet(() -> create(jwt, oid));
-
-        // On every login, not only the first: a copy that missed a message gets fixed here
-        userEventPublisher.publishRegistered(result.getUser());
-
-        return result;
     }
 
     private RegistrationResult create(Jwt jwt, String oid) {

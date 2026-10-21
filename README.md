@@ -55,29 +55,28 @@ cd ReservaFit-Backend
 | `api-gateway` | 8080 | Reenvía cada request según la ruta | (ninguna) |
 | `ms-usuarios` | 8081 | `/api/usuarios/**` | `usuario` |
 | `ms-gimnasios` | 8082 | `/api/gimnasios/**` | `gimnasio`, `horario`, `reserva_gimnasio` |
-| `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva`, `usuario_replica` |
+| `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva` |
 | `rabbitmq` | 5672, panel en 15672 | Mensajes entre los servicios | (ninguna) |
 
 Los datos quedan guardados entre reinicios (`docker compose down -v` borra la base). `ms-gimnasios` carga los gimnasios desde su `data.sql` sin duplicarlos.
 
-Ningún servicio lee tablas de otro. `ms-reservas` obtiene los usuarios de su copia `usuario_replica`, que se llena con mensajes de RabbitMQ, y les pregunta los horarios a `ms-gimnasios` por HTTP con OpenFeign (`client/GymClient`, directo a `GIMNASIOS_URL`, sin pasar por el gateway). Si `ms-gimnasios` no responde, reservar y ver la disponibilidad devuelven 503.
+Ningún servicio lee tablas de otro. `ms-reservas` guarda solo reservas: cada una tiene el `oid` del usuario, que viene en su token de Microsoft, así que no necesita datos de usuarios. Los horarios se los pregunta a `ms-gimnasios` por HTTP con OpenFeign (`client/GymClient`, directo a `GIMNASIOS_URL`, sin pasar por el gateway). Si `ms-gimnasios` no responde, reservar y ver la disponibilidad devuelven 503.
 
 ### RabbitMQ
 
 | Mensaje | Lo publica | Cuándo | Cola | Lo consume |
 | --- | --- | --- | --- | --- |
-| `user.registered` | `ms-usuarios` | En cada login (`POST /api/usuarios/me`) | `reservas.users` | `ms-reservas` → `usuario_replica` |
 | `booking.created` | `ms-reservas` | Al crear una reserva (`POST /api/reservas`) | `gimnasios.bookings` | `ms-gimnasios` → `reserva_gimnasio` |
 | `booking.cancelled` | `ms-reservas` | Al cancelar una reserva (`DELETE /api/reservas/{id}`) | `gimnasios.bookings` | `ms-gimnasios` → `reserva_gimnasio` |
 
-- Los mensajes van al exchange topic `reservafit.events`. Cada cola recibe los mensajes cuya routing key calza con su binding (`user.*` o `booking.*`).
+- Los mensajes van al exchange topic `reservafit.events`. La cola `gimnasios.bookings` recibe los mensajes cuya routing key calza con su binding `booking.*`.
 - Las reservas se envían recién cuando quedan guardadas en la base de datos (después del commit), así que una reserva rechazada no genera mensaje. `ms-gimnasios` guarda cada una en `reserva_gimnasio` (con el mismo id de la reserva, así que la cancelación reemplaza la fila) y lo deja en su log junto con cuántas reservas confirmadas tiene el gimnasio.
-- Si el servicio que consume falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a la DLQ de esa cola (`reservas.users.dlq` o `gimnasios.bookings.dlq`) a través del exchange `reservafit.dlx`, donde queda guardado. Por ejemplo, una reserva para un gimnasio que no existe termina en `gimnasios.bookings.dlq`.
-- Si un mensaje no calza con ninguna cola, o RabbitMQ no lo confirma, el servicio que lo envió lo escribe en su log.
+- Si `ms-gimnasios` falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a la DLQ `gimnasios.bookings.dlq` a través del exchange `reservafit.dlx`, donde queda guardado. Por ejemplo, una reserva para un gimnasio que no existe termina en `gimnasios.bookings.dlq`.
+- Si un mensaje no calza con ninguna cola, o RabbitMQ no lo confirma, `ms-reservas` lo escribe en su log.
 - Los logs salen por consola y en `logs/<servicio>.log`.
 - El panel de RabbitMQ está en http://localhost:15672 (usuario y clave `reservafit`). Ahí se ven las colas, las DLQ y se pueden publicar mensajes de prueba.
-- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en el productor y en el consumidor.
-- Cada cola la crea el servicio que la consume: `reservas.users` la crea `ms-reservas` y `gimnasios.bookings` la crea `ms-gimnasios`. Al levantar con `./mvnw`, arranca `ms-gimnasios` antes que `ms-reservas` (que además le pide los horarios). `compose.yaml` ya respeta ese orden.
+- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en `ms-reservas` y en `ms-gimnasios`.
+- La cola la crea el servicio que la consume (`ms-gimnasios`). Al levantar con `./mvnw`, arranca `ms-gimnasios` antes que `ms-reservas` (que además le pide los horarios). `compose.yaml` ya respeta ese orden.
 
 ## Docker
 

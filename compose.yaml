@@ -67,6 +67,10 @@ services:
       context: ./ReservaFit-Backend
       args:
         MODULE: ms-usuarios
+    # Does not use RabbitMQ, so it only waits for MySQL
+    depends_on:
+      mysql:
+        condition: service_healthy
     healthcheck:
       # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
       test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8081/api/usuarios/me"]

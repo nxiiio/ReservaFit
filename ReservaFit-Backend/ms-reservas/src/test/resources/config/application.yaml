@@ -7,8 +7,3 @@ spring:
     url: ""
     username: sa
     password: ""
-  # Tests have no RabbitMQ: the listeners are not started, so nothing tries to connect
-  rabbitmq:
-    listener:
-      simple:
-        auto-startup: false

@@ -14,8 +14,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 // The gym's record of a booking made in ms-reservas, filled from RabbitMQ messages.
-// The id is ms-reservas' own booking id. Plain ids, no relations: bookings and users
-// belong to other services.
+// The id is ms-reservas' own booking id; the user is their Microsoft oid. Plain values,
+// no relations: bookings and users belong to other services.
 @Entity
 @Table(name = "reserva_gimnasio")
 @Getter
@@ -26,8 +26,8 @@ public class ReservaGimnasio {
     @Id
     private Long id;
 
-    @Column(name = "usuario_id")
-    private Long usuarioId;
+    @Column(name = "usuario_oid", length = 36)
+    private String usuarioOid;
 
     @Column(name = "gimnasio_id", nullable = false)
     private Long gimnasioId;

@@ -30,13 +30,10 @@ import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
-import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
 import cl.nxiiio.reservafit.reservas.messaging.BookingEvent;
 import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
-import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.BookingRepository;
-import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
 
 @SpringBootTest
 @Transactional
@@ -50,22 +47,18 @@ class BookingServiceTest {
     private static final String OID_B = "oid-user-b";
 
     @Autowired private BookingRepository bookingRepository;
-    @Autowired private UserReplicaRepository userRepository;
     private final FakeGymClient gymClient = new FakeGymClient();
 
     // What BookingService announces (BookingEventPublisher would send each one to RabbitMQ)
     private final List<Object> publishedEvents = new ArrayList<>();
 
     private BookingService service;
-    private UsuarioReplica userA;
     private ScheduleInfo earlySlot; // gym 1, 07:00
     private ScheduleInfo eveningSlot; // gym 1, 18:00
 
     @BeforeEach
     void setUp() {
         service = serviceAt(CLOCK);
-        userA = userRepository.save(user(1L, OID_A));
-        userRepository.save(user(2L, OID_B));
         List<ScheduleInfo> slots = gymClient.findSchedulesOfGym(FakeGymClient.GYM_ID).orElseThrow();
         earlySlot = slots.get(0);
         eveningSlot = slots.get(2);
@@ -74,15 +67,7 @@ class BookingServiceTest {
     }
 
     private BookingService serviceAt(Clock clock) {
-        return new BookingService(bookingRepository, userRepository, gymClient, publishedEvents::add, clock);
-    }
-
-    private static UsuarioReplica user(Long id, String oid) {
-        UsuarioReplica user = new UsuarioReplica();
-        user.setId(id);
-        user.setMicrosoftOid(oid);
-        user.setNombre(oid);
-        return user;
+        return new BookingService(bookingRepository, gymClient, publishedEvents::add, clock);
     }
 
     private BookingResponse book(String oid, ScheduleInfo slot, LocalDate date) {
@@ -109,7 +94,7 @@ class BookingServiceTest {
 
         BookingEvent created = (BookingEvent) publishedEvents.get(0);
         assertEquals(booking.getId(), created.getBookingId());
-        assertEquals(userA.getId(), created.getUserId());
+        assertEquals(OID_A, created.getUserOid());
         assertEquals(1L, created.getGymId());
         assertEquals(earlySlot.getId(), created.getScheduleId());
         assertEquals(TODAY.plusDays(2), created.getDate());
@@ -154,11 +139,6 @@ class BookingServiceTest {
     void rejectsUnknownSchedule() {
         assertThrows(ScheduleNotFoundException.class,
                 () -> service.create(OID_A, new CreateBookingRequest(9999L, TODAY.plusDays(1))));
-    }
-
-    @Test
-    void rejectsUnregisteredUser() {
-        assertThrows(UserNotFoundException.class, () -> book("unknown-oid", earlySlot, TODAY.plusDays(1)));
     }
 
     @Test
@@ -227,7 +207,7 @@ class BookingServiceTest {
 
     private Reserva pastBooking(LocalDate date) {
         Reserva booking = new Reserva();
-        booking.setUsuarioId(userA.getId());
+        booking.setUsuarioOid(OID_A);
         booking.setGimnasioId(earlySlot.getGymId());
         booking.setHorarioId(earlySlot.getId());
         booking.setFecha(date);

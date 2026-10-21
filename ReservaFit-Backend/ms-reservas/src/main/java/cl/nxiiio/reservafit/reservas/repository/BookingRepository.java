@@ -19,5 +19,5 @@ public interface BookingRepository extends JpaRepository<Reserva, Long> {
 
     // Oldest first. Same-day bookings are ordered by start time in BookingService,
     // because start times live in ms-gimnasios.
-    List<Reserva> findByUsuarioIdOrderByFechaAsc(Long usuarioId);
+    List<Reserva> findByUsuarioOidOrderByFechaAsc(String usuarioOid);
 }

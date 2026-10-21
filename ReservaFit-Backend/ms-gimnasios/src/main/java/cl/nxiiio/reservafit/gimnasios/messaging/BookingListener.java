@@ -31,7 +31,7 @@ public class BookingListener {
 
         ReservaGimnasio record = new ReservaGimnasio();
         record.setId(event.getBookingId());
-        record.setUsuarioId(event.getUserId());
+        record.setUsuarioOid(event.getUserOid());
         record.setGimnasioId(event.getGymId());
         record.setHorarioId(event.getScheduleId());
         record.setFecha(event.getDate());
@@ -44,6 +44,6 @@ public class BookingListener {
 
         log.info("Booking {} {}: gym={} schedule={} date={} user={} (the gym has {} confirmed bookings)",
                 event.getBookingId(), event.getStatus(), event.getGymId(), event.getScheduleId(),
-                event.getDate(), event.getUserId(), confirmed);
+                event.getDate(), event.getUserOid(), confirmed);
     }
 }

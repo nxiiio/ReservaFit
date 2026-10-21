@@ -37,10 +37,11 @@ public class Reserva {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Plain ids: users, gyms and schedules live in other services, so there are no JPA
-    // relations or foreign keys to them
-    @Column(name = "usuario_id", nullable = false)
-    private Long usuarioId;
+    // The user is the "oid" of their Microsoft token (unique per user and fixed), so this
+    // service needs no user data. Gyms and schedules live in ms-gimnasios: plain ids, no
+    // JPA relations or foreign keys to them.
+    @Column(name = "usuario_oid", length = 36, nullable = false)
+    private String usuarioOid;
 
     @Column(name = "gimnasio_id", nullable = false)
     private Long gimnasioId;

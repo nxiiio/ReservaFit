@@ -21,7 +21,6 @@ import cl.nxiiio.reservafit.reservas.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
-import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
 
 // Error bodies are field -> message maps so the frontend can show each message next to its input.
 @RestControllerAdvice
@@ -40,12 +39,6 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleUnreadableBody() {
         return Map.of("error", "Datos con formato inválido");
-    }
-
-    @ExceptionHandler(UserNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public Map<String, String> handleUserNotFound() {
-        return Map.of("error", "Usuario no registrado");
     }
 
     @ExceptionHandler(GymNotFoundException.class)
