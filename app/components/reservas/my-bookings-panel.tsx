@@ -7,6 +7,8 @@ import { acquireApiToken } from "../../lib/auth-token";
 import { requestNotificationsRefresh } from "../../lib/notification-events";
 import type { Booking } from "../../types/booking";
 import { formatLongDate, formatTime, todayIso } from "../../lib/dates";
+import { CalendarIcon, CheckIcon } from "../ui/icons";
+import { StateBlock, primaryButtonClass, retryButtonClass } from "../ui/state-block";
 
 type BookingsState = { status: "loading" } | { status: "error" } | { status: "ready"; bookings: Booking[] };
 
@@ -19,7 +21,7 @@ const STATUS_LABELS: Record<DisplayStatus, string> = {
 };
 
 const STATUS_STYLES: Record<DisplayStatus, string> = {
-  confirmed: "bg-ink text-white",
+  confirmed: "bg-ink text-paper",
   cancelled: "border border-line text-muted",
   finished: "bg-line text-ink",
 };
@@ -90,54 +92,85 @@ export function MyBookingsPanel() {
 
   return (
     <section className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-8 lg:px-12">
-      <h1 className="font-display text-3xl font-bold sm:text-4xl">Mis reservas</h1>
+      <h1 className="font-display text-4xl leading-none font-bold sm:text-5xl">Mis reservas</h1>
 
       {justBooked && (
-        <p className="mt-6 rounded-md border border-line bg-white px-4 py-3 text-sm font-medium" role="status">
+        <p className="enter mt-6 flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-sm font-medium shadow-card" role="status">
+          <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-ink">
+            <CheckIcon className="size-4" />
+          </span>
           ¡Reserva confirmada! Te esperamos.
         </p>
       )}
 
-      {state.status === "loading" && <p className="mt-8 text-sm text-muted">Cargando reservas…</p>}
+      {state.status === "loading" && (
+        <div role="status" className="mt-8">
+          <span className="sr-only">Cargando reservas…</span>
+          <ul aria-hidden="true" className="flex flex-col gap-4">
+            {Array.from({ length: 3 }, (_, index) => (
+              <li key={index} className="flex flex-col gap-4 rounded-xl bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <div className="skeleton h-6 w-44 rounded-md" />
+                    <div className="skeleton h-5 w-20 rounded-full" />
+                  </div>
+                  <div className="skeleton mt-3 h-4 w-24 rounded-md" />
+                  <div className="skeleton mt-3 h-4 w-64 max-w-full rounded-md" />
+                </div>
+                <div className="skeleton h-10 w-28 rounded-lg" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {state.status === "error" && (
-        <p className="mt-8 text-sm text-[#b94018]">
-          No se pudieron cargar tus reservas.{" "}
-          <button type="button" onClick={() => setAttempt((n) => n + 1)} className="cursor-pointer font-semibold underline">
-            Reintentar
-          </button>
-        </p>
+        <StateBlock
+          tone="error"
+          className="mt-8"
+          title="No se pudieron cargar tus reservas."
+          action={
+            <button type="button" onClick={() => setAttempt((n) => n + 1)} className={retryButtonClass}>
+              Reintentar
+            </button>
+          }
+        />
       )}
 
       {state.status === "ready" && state.bookings.length === 0 && (
-        <div className="mt-8 rounded-lg border border-line bg-white p-6 text-sm">
-          <p className="font-semibold">Aún no tienes reservas.</p>
-          <p className="mt-1 text-muted">Elige un gimnasio y reserva tu próximo entrenamiento.</p>
-          <Link
-            to="/reservas"
-            className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-ink px-5 font-semibold text-white transition-colors hover:bg-ink/85"
-          >
-            Ver gimnasios
-          </Link>
-        </div>
+        <StateBlock
+          className="mt-8"
+          icon={<CalendarIcon />}
+          title="Aún no tienes reservas."
+          action={
+            <Link to="/reservas" className={primaryButtonClass}>
+              Ver gimnasios
+            </Link>
+          }
+        >
+          Elige un gimnasio y reserva tu próximo entrenamiento.
+        </StateBlock>
       )}
 
       {state.status === "ready" && state.bookings.length > 0 && (
         <ul className="mt-8 flex flex-col gap-4">
-          {state.bookings.map((booking) => {
+          {state.bookings.map((booking, index) => {
             const status = displayStatus(booking, today);
             const confirming = confirmingId === booking.id;
             const cancelling = cancellingId === booking.id;
             return (
               <li
                 key={booking.id}
-                className="flex flex-col gap-4 rounded-lg border border-line bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                style={{ "--i": Math.min(index, 8) } as React.CSSProperties}
+                className={`enter flex flex-col gap-4 rounded-xl p-5 transition-colors duration-200 sm:flex-row sm:items-center sm:justify-between ${
+                  status === "confirmed" ? "bg-white shadow-card" : "bg-surface"
+                }`}
               >
                 <div className={status === "confirmed" ? "" : "text-muted"}>
                   <div className="flex flex-wrap items-center gap-3">
                     <Link
                       to={`/gimnasios/${booking.gymId}`}
-                      className={`font-display text-xl font-semibold hover:underline ${status === "confirmed" ? "text-ink" : ""}`}
+                      className={`font-display text-2xl leading-tight font-semibold underline-offset-4 hover:underline ${status === "confirmed" ? "text-ink" : ""}`}
                     >
                       {booking.gymName}
                     </Link>
@@ -146,11 +179,11 @@ export function MyBookingsPanel() {
                     </span>
                   </div>
                   {booking.gymComuna && <p className="mt-1 text-sm text-muted">{booking.gymComuna}</p>}
-                  <p className="mt-2 text-sm first-letter:uppercase">
-                    {formatLongDate(booking.date)} · {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
+                  <p className="mt-2 text-sm tabular-nums first-letter:uppercase">
+                    {formatLongDate(booking.date)} · {formatTime(booking.startTime)} - {formatTime(booking.endTime)}
                   </p>
                   {cancelErrors[booking.id] && (
-                    <p className="mt-2 text-sm text-[#b94018]" role="alert">
+                    <p className="enter mt-2 text-sm text-accent-deep" role="alert">
                       {cancelErrors[booking.id]}
                     </p>
                   )}
@@ -160,20 +193,20 @@ export function MyBookingsPanel() {
                   <button
                     type="button"
                     onClick={() => setConfirmingId(booking.id)}
-                    className="flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-md border border-line px-5 text-sm font-semibold transition-colors hover:bg-paper"
+                    className="press flex h-10 shrink-0 cursor-pointer items-center justify-center self-start rounded-lg border border-line-strong px-5 text-sm font-semibold hover:border-ink hover:bg-surface sm:self-auto"
                   >
                     Cancelar
                   </button>
                 )}
 
                 {booking.cancellable && confirming && (
-                  <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm">
+                  <div className="enter-x flex shrink-0 flex-wrap items-center gap-3 text-sm">
                     <span className="font-semibold">¿Confirmar cancelación?</span>
                     <button
                       type="button"
                       onClick={() => handleCancel(booking.id)}
                       disabled={cancelling}
-                      className="flex h-10 cursor-pointer items-center justify-center rounded-md bg-ink px-4 font-semibold text-white transition-colors hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="press flex h-10 min-w-14 cursor-pointer items-center justify-center rounded-lg bg-accent-deep px-4 font-semibold text-white hover:bg-accent-deep/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {cancelling ? "Cancelando…" : "Sí"}
                     </button>
@@ -181,7 +214,7 @@ export function MyBookingsPanel() {
                       type="button"
                       onClick={() => setConfirmingId(null)}
                       disabled={cancelling}
-                      className="flex h-10 cursor-pointer items-center justify-center rounded-md border border-line px-4 font-semibold transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
+                      className="press flex h-10 min-w-14 cursor-pointer items-center justify-center rounded-lg border border-line-strong px-4 font-semibold hover:border-ink hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       No
                     </button>

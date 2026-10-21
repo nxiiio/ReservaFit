@@ -4,6 +4,8 @@ import { fetchNotifications, markAllNotificationsRead, markNotificationRead } fr
 import { acquireApiToken } from "../../lib/auth-token";
 import { onNotificationsRefresh } from "../../lib/notification-events";
 import type { AppNotification } from "../../types/notification";
+import { BellIcon, CheckIcon, CloseIcon } from "../ui/icons";
+import { StateBlock } from "../ui/state-block";
 
 const POLL_INTERVAL_MS = 30_000;
 // A booking reaches ms-notificaciones through RabbitMQ a moment after the booking response,
@@ -90,34 +92,37 @@ export function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    // Not relative on phones: the panel then anchors to AppNav's button cluster, whose right
+    // edge sits on the page gutter, so the 20rem panel stays on screen at 375px
+    <div className="sm:relative">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-label={unread > 0 ? `Notificaciones, ${unread} sin leer` : "Notificaciones"}
         aria-expanded={open}
-        className="relative flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-line/60 text-ink transition-colors hover:bg-line"
+        className="press relative flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-surface text-ink hover:border-line-strong hover:bg-line aria-expanded:border-ink"
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9Z" strokeLinejoin="round" />
-          <path d="M10 19a2 2 0 0 0 4 0" strokeLinecap="round" />
-        </svg>
+        <BellIcon />
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold text-white">
+          // Ink on accent is 5.5:1; the paper ring separates the pill from the button edge
+          <span
+            aria-hidden="true"
+            className="pop absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] leading-none font-bold text-ink tabular-nums ring-2 ring-paper"
+          >
             {unread > 9 ? "9+" : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-2.5rem)] rounded-lg border border-line bg-white text-sm shadow-lg">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <p className="font-semibold text-ink">Notificaciones</p>
+        <div className="pop absolute right-0 z-10 mt-2 w-80 max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-lg bg-white text-sm shadow-pop">
+          <div className="flex items-center justify-between gap-3 border-b border-line py-2 pr-2 pl-4">
+            <p className="py-1.5 font-semibold text-ink">Notificaciones</p>
             {unread > 0 && (
               <button
                 type="button"
                 onClick={markAllRead}
-                className="cursor-pointer text-xs font-semibold text-muted hover:text-ink"
+                className="press cursor-pointer rounded-md px-2 py-1.5 text-xs font-semibold text-muted hover:bg-surface hover:text-ink"
               >
                 Marcar todas como leídas
               </button>
@@ -125,36 +130,43 @@ export function NotificationBell() {
           </div>
 
           {notifications.length === 0 ? (
-            <p className="px-4 py-6 text-center text-muted">No tienes notificaciones</p>
+            <div className="p-2">
+              <StateBlock icon={<BellIcon />} title="No tienes notificaciones" />
+            </div>
           ) : (
-            <ul className="max-h-96 overflow-y-auto">
-              {notifications.map((notification) => (
-                <li key={notification.id} className="border-b border-line last:border-0">
-                  <button
-                    type="button"
-                    onClick={() => markRead(notification)}
-                    className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left hover:bg-paper ${notification.read ? "" : "bg-paper/70"}`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                        notification.type === "RESERVA_CANCELADA" ? "bg-line text-muted" : "bg-accent/15 text-accent"
+            <ul className="max-h-96 overflow-y-auto overscroll-contain">
+              {notifications.map((notification) => {
+                const cancelled = notification.type === "RESERVA_CANCELADA";
+                return (
+                  <li key={notification.id} className="border-b border-line last:border-0">
+                    <button
+                      type="button"
+                      onClick={() => markRead(notification)}
+                      className={`flex w-full cursor-pointer gap-3 px-4 py-3 text-left transition-colors hover:bg-surface ${
+                        notification.read ? "" : "bg-surface/60"
                       }`}
                     >
-                      {notification.type === "RESERVA_CANCELADA" ? "✕" : "✓"}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className={`block ${notification.read ? "text-muted" : "font-medium text-ink"}`}>
-                        {notification.message}
+                      <span
+                        aria-hidden="true"
+                        className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${
+                          cancelled ? "bg-line text-muted" : "bg-accent/15 text-accent-deep"
+                        } ${notification.read ? "opacity-70" : ""}`}
+                      >
+                        {cancelled ? <CloseIcon className="size-3.5" /> : <CheckIcon className="size-3.5" />}
                       </span>
-                      <span className="mt-1 block text-xs text-muted">{timeAgo(notification.createdAt)}</span>
-                    </span>
-                    {!notification.read && (
-                      <span aria-label="Sin leer" className="mt-2 size-2 shrink-0 rounded-full bg-accent" />
-                    )}
-                  </button>
-                </li>
-              ))}
+                      <span className="min-w-0 flex-1 leading-5">
+                        <span className={`block ${notification.read ? "text-muted" : "font-semibold text-ink"}`}>
+                          {notification.message}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted tabular-nums">{timeAgo(notification.createdAt)}</span>
+                      </span>
+                      {!notification.read && (
+                        <span aria-label="Sin leer" className="mt-2 size-2 shrink-0 rounded-full bg-accent-deep" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

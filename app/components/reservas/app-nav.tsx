@@ -5,8 +5,9 @@ import { NavLink, useLocation } from "react-router";
 import { Brand } from "../landing/brand";
 import { NotificationBell } from "./notification-bell";
 
-const activeLink = "border-b-2 border-ink py-1 font-semibold";
-const idleLink = "py-1 text-muted transition-colors hover:text-ink";
+// .nav-bar draws the accent underline for aria-current="page" (see app.css)
+const activeLink = "nav-bar py-1 font-semibold text-ink";
+const idleLink = "nav-bar py-1 text-muted transition-colors hover:text-ink";
 
 export function AppNav({ userName }: { userName: string | null }) {
   const { instance, accounts, inProgress } = useMsal();
@@ -30,7 +31,7 @@ export function AppNav({ userName }: { userName: string | null }) {
   }
 
   return (
-    <header className="border-b border-line">
+    <header className="border-b border-line bg-paper">
       <nav
         aria-label="Navegación principal"
         className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-4 px-5 py-5 sm:px-8 lg:px-12"
@@ -48,7 +49,8 @@ export function AppNav({ userName }: { userName: string | null }) {
             Mis reservas
           </NavLink>
         </div>
-        <div className="flex items-center gap-3">
+        {/* relative: on phones the notification panel anchors to this cluster's right edge (see NotificationBell) */}
+        <div className="relative flex items-center gap-2">
           <NotificationBell />
           <div className="relative">
             <button
@@ -56,7 +58,7 @@ export function AppNav({ userName }: { userName: string | null }) {
               onClick={() => setMenuOpen((open) => !open)}
               aria-label="Menú de usuario"
               aria-expanded={menuOpen}
-              className="flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-line/60 text-ink transition-colors hover:bg-line"
+              className="press flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-surface text-ink hover:border-line-strong hover:bg-line aria-expanded:border-ink"
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="12" cy="8" r="4" />
@@ -64,13 +66,13 @@ export function AppNav({ userName }: { userName: string | null }) {
               </svg>
             </button>
             {menuOpen && (
-              <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-line bg-white p-2 text-sm shadow-lg">
-                {userName && <p className="truncate px-3 py-2 text-muted">{userName}</p>}
+              <div className="pop absolute right-0 z-10 mt-2 w-56 rounded-lg bg-white p-1.5 text-sm shadow-pop">
+                {userName && <p className="truncate border-b border-line px-3 pt-2 pb-2.5 text-muted">{userName}</p>}
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={inProgress !== InteractionStatus.None}
-                  className="w-full cursor-pointer rounded-md px-3 py-2 text-left font-semibold hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-1 w-full cursor-pointer rounded-md px-3 py-2 text-left font-semibold transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cerrar sesión
                 </button>

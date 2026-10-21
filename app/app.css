@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/*
+ * Radius system (one rule, applied everywhere):
+ * - rounded-lg (8px): controls (buttons, inputs, selects, slot buttons, menus)
+ * - rounded-xl (12px): content cards (gym cards, booking rows, state blocks)
+ * - rounded-2xl (16px): large media and feature surfaces (hero image, CTA band)
+ * - rounded-full: only small status pills and the round nav buttons (avatar, notifications)
+ */
 @theme {
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
@@ -8,15 +15,37 @@
   --color-muted: #666960;
   --color-accent: #ff6b35;
   --color-line: #dedfd7;
+
+  /* Derived tokens */
+  --color-accent-deep: #b94018; /* accent for text, errors and focus: 5.2:1 on paper */
+  --color-accent-hover: #f15d28; /* hover of accent fills; ink stays above 4.5:1 */
+  --color-surface: #f0f0e9; /* tinted section and empty-state surface */
+  --color-line-strong: #8f9187; /* form control borders: 3:1 on white */
+
+  /* Shadows tinted with the ink hue, never pure black */
+  --shadow-card: 0 1px 2px rgb(37 39 33 / 0.05), 0 6px 18px -10px rgb(37 39 33 / 0.16);
+  --shadow-lift: 0 2px 4px rgb(37 39 33 / 0.05), 0 18px 34px -16px rgb(37 39 33 / 0.3);
+  --shadow-pop: 0 4px 10px -2px rgb(37 39 33 / 0.08), 0 16px 32px -12px rgb(37 39 33 / 0.24);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 2rem;
+  scrollbar-color: var(--color-line-strong) var(--color-paper);
+  accent-color: var(--color-accent-deep);
+  caret-color: var(--color-accent-deep);
 }
 
 body {
   @apply m-0 bg-paper text-ink antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
 }
 
 ::selection {
@@ -24,12 +53,227 @@ body {
 }
 
 :focus-visible {
-  outline: 3px solid #b83f16;
+  outline: 3px solid var(--color-accent-deep);
   outline-offset: 5px;
+}
+
+input:focus-visible,
+select:focus-visible {
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* Motion primitives. Defaults are static and visible; motion only runs with no-preference. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes enter-x {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+@keyframes line-up {
+  from {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@layer components {
+  /* Buttons and links that should feel pressed */
+  .press {
+    transition-property: background-color, border-color, color, opacity, transform;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out-expo);
+  }
+
+  /* Arrow that nudges forward when its group is hovered */
+  .nudge {
+    transition: transform 240ms var(--ease-out-expo);
+  }
+
+  /* Card that lifts on hover; the shadow fades on a pseudo-element so only opacity animates */
+  .lift {
+    position: relative;
+    box-shadow: var(--shadow-card);
+    transition: transform 240ms var(--ease-out-expo);
+  }
+
+  .lift::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--shadow-lift);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 240ms var(--ease-out-expo);
+  }
+
+  .lift:hover::after,
+  .lift:focus-within::after {
+    opacity: 1;
+  }
+
+  /* Skeleton block: static under reduced motion, shimmer otherwise */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(222 223 215 / 0.7);
+  }
+
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(250 249 246 / 0.7), transparent);
+    opacity: 0;
+  }
+
+  /* Underline bar for nav links: scales in from the left */
+  .nav-bar {
+    position: relative;
+  }
+
+  .nav-bar::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -2px;
+    height: 2px;
+    border-radius: 2px;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 240ms var(--ease-out-expo);
+  }
+
+  .nav-bar:hover::after,
+  .nav-bar[aria-current="page"]::after {
+    transform: scaleX(1);
+  }
+
+  .nav-bar[aria-current="page"]::after {
+    background-color: var(--color-accent);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .press:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .group:hover .nudge,
+  .group:focus-visible .nudge {
+    transform: translateX(3px);
+  }
+
+  .lift:hover,
+  .lift:focus-within {
+    transform: translateY(-4px);
+  }
+
+  .skeleton::after {
+    opacity: 1;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Hero focal moment: each headline line slides up out of its own mask */
+  .line-mask {
+    overflow: hidden;
+    padding-bottom: 0.06em;
+    margin-bottom: -0.06em;
+  }
+
+  .line-mask > span {
+    animation: line-up 500ms var(--ease-out-expo) backwards;
+    animation-delay: calc(var(--i, 0) * 60ms + 60ms);
+  }
+
+  .rise {
+    animation: rise 500ms var(--ease-out-expo) backwards;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+
+  .settle {
+    animation: settle 500ms var(--ease-out-expo) backwards;
+  }
+
+  /* Short entrance for content that replaces a skeleton or appears after an action */
+  .enter {
+    animation: enter 300ms var(--ease-out-expo) backwards;
+    animation-delay: calc(var(--i, 0) * 40ms);
+  }
+
+  .enter-x {
+    animation: enter-x 200ms var(--ease-out-expo) backwards;
+  }
+
+  .pop {
+    transform-origin: top right;
+    animation: pop 160ms var(--ease-out-expo) backwards;
+  }
+
+  /* Scroll reveal: app/hooks/use-reveal.ts marks targets pending, then shown. Without JS nothing is hidden. */
+  .reveal,
+  .reveal-x,
+  .reveal-scale {
+    transition:
+      opacity 500ms var(--ease-out-expo),
+      transform 500ms var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 60ms);
+  }
+
+  .reveal[data-reveal="pending"] {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  .reveal-x[data-reveal="pending"] {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+
+  .reveal-scale[data-reveal="pending"] {
+    opacity: 0;
+    transform: scale(0.97);
   }
 }

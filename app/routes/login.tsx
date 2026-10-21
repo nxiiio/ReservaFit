@@ -6,6 +6,7 @@ import { LoginHeader } from "../components/login/login-header";
 import { LoginPanel } from "../components/login/login-panel";
 import { LoginVisual } from "../components/login/login-visual";
 import { CompleteProfileForm } from "../components/login/complete-profile-form";
+import { AlertIcon } from "../components/ui/icons";
 import { useCurrentUser } from "../lib/use-current-user";
 
 export function meta({}: Route.MetaArgs) {
@@ -35,13 +36,14 @@ export default function Login() {
     );
   } else if (state.status === "error") {
     content = (
-      <div className="mx-auto w-full max-w-md py-5 text-sm leading-6" role="alert">
-        <p className="font-semibold">No pudimos verificar tu cuenta.</p>
-        <p className="mt-1 text-muted">Revisa tu conexión e intenta de nuevo.</p>
+      <div className="enter mx-auto w-full max-w-md py-5 text-sm leading-6" role="alert">
+        <AlertIcon className="mb-4 size-6 text-accent-deep" />
+        <p className="font-display text-3xl leading-none font-bold uppercase">No pudimos verificar tu cuenta.</p>
+        <p className="mt-3 text-base text-muted">Revisa tu conexión e intenta de nuevo.</p>
         <button
           type="button"
           onClick={retry}
-          className="mt-5 flex h-13 cursor-pointer items-center justify-center rounded-lg border border-line bg-white px-5 font-semibold text-ink transition-colors hover:bg-paper"
+          className="press mt-6 flex h-13 cursor-pointer items-center justify-center rounded-lg border border-line-strong bg-white px-6 font-semibold text-ink hover:border-ink"
         >
           Reintentar
         </button>
@@ -49,7 +51,8 @@ export default function Login() {
     );
   } else {
     content = (
-      <p className="mx-auto w-full max-w-md py-5 text-sm text-muted" role="status">
+      <p className="enter mx-auto flex w-full max-w-md items-center gap-3 py-5 text-sm text-muted" role="status">
+        <span aria-hidden="true" className="skeleton h-2 w-16 rounded-full" />
         Verificando tu cuenta…
       </p>
     );
