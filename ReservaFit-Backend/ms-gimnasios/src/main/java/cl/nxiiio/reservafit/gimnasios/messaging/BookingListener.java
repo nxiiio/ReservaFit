@@ -1,7 +1,5 @@
 package cl.nxiiio.reservafit.gimnasios.messaging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -9,22 +7,19 @@ import cl.nxiiio.reservafit.gimnasios.exception.GymNotFoundException;
 import cl.nxiiio.reservafit.gimnasios.model.ReservaGimnasio;
 import cl.nxiiio.reservafit.gimnasios.repository.GymBookingRepository;
 import cl.nxiiio.reservafit.gimnasios.repository.GymRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 // Receives the bookings made in ms-reservas, so each gym keeps a record of its bookings
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class BookingListener {
-
-    private static final Logger log = LoggerFactory.getLogger(BookingListener.class);
 
     private static final String CONFIRMED = "CONFIRMADA";
 
     private final GymRepository gymRepository;
     private final GymBookingRepository gymBookingRepository;
-
-    public BookingListener(GymRepository gymRepository, GymBookingRepository gymBookingRepository) {
-        this.gymRepository = gymRepository;
-        this.gymBookingRepository = gymBookingRepository;
-    }
 
     // If this method throws, the message is retried and then sent to gimnasios.bookings.dlq
     @RabbitListener(queues = RabbitNames.BOOKINGS_QUEUE)

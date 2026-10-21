@@ -2,11 +2,11 @@ package cl.nxiiio.reservafit.reservas.messaging;
 
 import java.nio.charset.StandardCharsets;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.stereotype.Component;
+
+import lombok.extern.slf4j.Slf4j;
 
 // Runs when a message has failed every retry (see spring.rabbitmq.listener.simple.retry).
 // It logs the message and then rejects it without sending it back to its queue, so RabbitMQ
@@ -14,9 +14,8 @@ import org.springframework.stereotype.Component;
 // The message stays there, visible in the RabbitMQ panel, so it can be inspected or re-sent.
 // Spring Boot uses this bean automatically because it is the only MessageRecoverer.
 @Component
+@Slf4j
 public class DeadLetterRecoverer extends RejectAndDontRequeueRecoverer {
-
-    private static final Logger log = LoggerFactory.getLogger(DeadLetterRecoverer.class);
 
     @Override
     public void recover(Message message, Throwable cause) {

@@ -11,17 +11,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import cl.nxiiio.reservafit.reservas.dto.SlotAvailabilityResponse;
 import cl.nxiiio.reservafit.reservas.service.BookingService;
+import lombok.RequiredArgsConstructor;
 
 // Lives under /api/gimnasios but in this service, because it needs the bookings.
 // The gateway routes this one path here and the rest of /api/gimnasios to ms-gimnasios.
 @RestController
+@RequiredArgsConstructor
 public class AvailabilityController {
 
     private final BookingService bookingService;
-
-    public AvailabilityController(BookingService bookingService) {
-        this.bookingService = bookingService;
-    }
 
     @GetMapping("/api/gimnasios/{id}/disponibilidad")
     public List<SlotAvailabilityResponse> getAvailability(

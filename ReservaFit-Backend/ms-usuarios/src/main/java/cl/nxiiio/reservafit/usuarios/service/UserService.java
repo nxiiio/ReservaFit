@@ -14,8 +14,10 @@ import cl.nxiiio.reservafit.usuarios.model.Usuario;
 import cl.nxiiio.reservafit.usuarios.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
     @Getter
@@ -27,11 +29,6 @@ public class UserService {
 
     private final UserRepository repository;
     private final UserEventPublisher userEventPublisher;
-
-    public UserService(UserRepository repository, UserEventPublisher userEventPublisher) {
-        this.repository = repository;
-        this.userEventPublisher = userEventPublisher;
-    }
 
     // Not @Transactional on purpose: saveAndFlush runs in its own transaction, so a
     // unique-constraint violation from a concurrent first login leaves us free to re-read.

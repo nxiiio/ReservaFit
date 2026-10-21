@@ -2,8 +2,6 @@ package cl.nxiiio.reservafit.usuarios.messaging;
 
 import java.nio.charset.StandardCharsets;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
@@ -13,12 +11,13 @@ import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import lombok.extern.slf4j.Slf4j;
+
 // RabbitMQ setup of this service, which only publishes. The queues belong to ms-reservas,
 // which declares them; this service only needs the exchange it publishes to.
 @Configuration
+@Slf4j
 public class RabbitConfig {
-
-    private static final Logger log = LoggerFactory.getLogger(RabbitConfig.class);
 
     // Created in RabbitMQ on connect if it does not exist yet
     @Bean

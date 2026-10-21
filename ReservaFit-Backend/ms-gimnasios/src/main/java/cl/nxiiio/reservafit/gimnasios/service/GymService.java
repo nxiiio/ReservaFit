@@ -11,18 +11,15 @@ import cl.nxiiio.reservafit.gimnasios.model.Gimnasio;
 import cl.nxiiio.reservafit.gimnasios.model.Horario;
 import cl.nxiiio.reservafit.gimnasios.repository.GymRepository;
 import cl.nxiiio.reservafit.gimnasios.repository.ScheduleRepository;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class GymService {
 
     private final GymRepository gymRepository;
     private final ScheduleRepository scheduleRepository;
-
-    public GymService(GymRepository gymRepository, ScheduleRepository scheduleRepository) {
-        this.gymRepository = gymRepository;
-        this.scheduleRepository = scheduleRepository;
-    }
 
     // A blank comuna means "no filter"
     public List<Gimnasio> findAll(String comuna) {

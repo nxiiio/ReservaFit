@@ -14,16 +14,14 @@ import cl.nxiiio.reservafit.usuarios.dto.CompleteProfileRequest;
 import cl.nxiiio.reservafit.usuarios.dto.UserResponse;
 import cl.nxiiio.reservafit.usuarios.service.UserService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/usuarios")
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
 
     @PostMapping("/me")
     public ResponseEntity<UserResponse> registerCurrentUser(@AuthenticationPrincipal Jwt jwt) {

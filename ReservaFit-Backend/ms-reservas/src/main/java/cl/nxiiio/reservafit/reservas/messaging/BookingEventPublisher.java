@@ -1,28 +1,24 @@
 package cl.nxiiio.reservafit.reservas.messaging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 // Sends the bookings to RabbitMQ (today ms-gimnasios reads them).
 // BookingService only announces the change inside the application (publishEvent); this
 // method runs once the database transaction has committed, so a booking that ends up not
 // being saved never produces a message.
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class BookingEventPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(BookingEventPublisher.class);
-
     private final RabbitTemplate rabbitTemplate;
-
-    public BookingEventPublisher(RabbitTemplate rabbitTemplate) {
-        this.rabbitTemplate = rabbitTemplate;
-    }
 
     @TransactionalEventListener
     public void publish(BookingEvent event) {

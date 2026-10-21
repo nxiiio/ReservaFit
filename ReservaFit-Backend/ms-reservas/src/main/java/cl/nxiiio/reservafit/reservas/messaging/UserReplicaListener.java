@@ -1,24 +1,20 @@
 package cl.nxiiio.reservafit.reservas.messaging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 // Keeps usuario_replica up to date with the users that ms-usuarios publishes
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class UserReplicaListener {
 
-    private static final Logger log = LoggerFactory.getLogger(UserReplicaListener.class);
-
     private final UserReplicaRepository repository;
-
-    public UserReplicaListener(UserReplicaRepository repository) {
-        this.repository = repository;
-    }
 
     // If this method throws, the message is retried and then sent to reservas.users.dlq
     @RabbitListener(queues = RabbitNames.USERS_QUEUE)

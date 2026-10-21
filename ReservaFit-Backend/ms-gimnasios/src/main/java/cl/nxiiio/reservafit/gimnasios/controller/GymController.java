@@ -12,16 +12,14 @@ import cl.nxiiio.reservafit.gimnasios.dto.GymResponse;
 import cl.nxiiio.reservafit.gimnasios.dto.ScheduleDetailResponse;
 import cl.nxiiio.reservafit.gimnasios.dto.ScheduleResponse;
 import cl.nxiiio.reservafit.gimnasios.service.GymService;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/gimnasios")
+@RequiredArgsConstructor
 public class GymController {
 
     private final GymService gymService;
-
-    public GymController(GymService gymService) {
-        this.gymService = gymService;
-    }
 
     @GetMapping
     public List<GymResponse> listGyms(@RequestParam(required = false) String comuna) {

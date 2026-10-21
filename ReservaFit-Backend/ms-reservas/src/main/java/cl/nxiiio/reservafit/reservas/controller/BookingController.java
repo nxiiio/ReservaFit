@@ -18,16 +18,14 @@ import cl.nxiiio.reservafit.reservas.dto.BookingResponse;
 import cl.nxiiio.reservafit.reservas.dto.CreateBookingRequest;
 import cl.nxiiio.reservafit.reservas.service.BookingService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/reservas")
+@RequiredArgsConstructor
 public class BookingController {
 
     private final BookingService bookingService;
-
-    public BookingController(BookingService bookingService) {
-        this.bookingService = bookingService;
-    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

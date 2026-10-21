@@ -2,8 +2,6 @@ package cl.nxiiio.reservafit.reservas.messaging;
 
 import java.nio.charset.StandardCharsets;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -18,14 +16,15 @@ import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import lombok.extern.slf4j.Slf4j;
+
 // Declares the queue this service reads, its dead letter queue and both exchanges.
 // Spring creates what is missing when it connects (declaring something that exists does nothing).
 // The users queue belongs to this service because it is the one that consumes it; the
 // bookings queue that this service publishes to belongs to ms-gimnasios.
 @Configuration
+@Slf4j
 public class RabbitConfig {
-
-    private static final Logger log = LoggerFactory.getLogger(RabbitConfig.class);
 
     // ---------- Exchanges ----------
 

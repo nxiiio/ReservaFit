@@ -1,24 +1,20 @@
 package cl.nxiiio.reservafit.usuarios.messaging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
 import cl.nxiiio.reservafit.usuarios.model.Usuario;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 // Tells the other services (today only ms-reservas) about a user, through RabbitMQ
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class UserEventPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(UserEventPublisher.class);
-
     private final RabbitTemplate rabbitTemplate;
-
-    public UserEventPublisher(RabbitTemplate rabbitTemplate) {
-        this.rabbitTemplate = rabbitTemplate;
-    }
 
     public void publishRegistered(Usuario user) {
         UserRegisteredEvent event = new UserRegisteredEvent(
