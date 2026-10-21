@@ -2,6 +2,7 @@ package cl.nxiiio.reservafit.reservas.messaging;
 
 import java.time.LocalDate;
 
+import cl.nxiiio.reservafit.reservas.model.Reserva;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,4 +25,14 @@ public class BookingEvent {
 
     // "CONFIRMADA" or "CANCELADA"
     private String status;
+
+    public static BookingEvent from(Reserva booking) {
+        return new BookingEvent(
+                booking.getId(),
+                booking.getUsuarioId(),
+                booking.getGimnasioId(),
+                booking.getHorarioId(),
+                booking.getFecha(),
+                booking.getEstado().name());
+    }
 }

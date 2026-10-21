@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,17 +28,20 @@ import cl.nxiiio.reservafit.reservas.exception.InvalidBookingDateException;
 import cl.nxiiio.reservafit.reservas.exception.ScheduleNotFoundException;
 import cl.nxiiio.reservafit.reservas.exception.SlotAlreadyBookedException;
 import cl.nxiiio.reservafit.reservas.exception.UserNotFoundException;
-import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
 import cl.nxiiio.reservafit.reservas.messaging.BookingEvent;
+import cl.nxiiio.reservafit.reservas.model.EstadoReserva;
 import cl.nxiiio.reservafit.reservas.model.Reserva;
 import cl.nxiiio.reservafit.reservas.model.UsuarioReplica;
 import cl.nxiiio.reservafit.reservas.repository.BookingRepository;
 import cl.nxiiio.reservafit.reservas.repository.UserReplicaRepository;
+import lombok.RequiredArgsConstructor;
 
 // Users and schedules belong to other services. Users are read from the local copy that
 // RabbitMQ keeps up to date (UsuarioReplica); schedules are asked to ms-gimnasios (GymClient).
 // Every booking that is created or canceled is sent to RabbitMQ (BookingEventPublisher).
+// @RequiredArgsConstructor (Lombok) writes the constructor that receives the final fields.
 @Service
+@RequiredArgsConstructor
 public class BookingService {
 
     public static final int MAX_DAYS_AHEAD = 30;
@@ -49,19 +51,6 @@ public class BookingService {
     private final GymClient gymClient;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
-
-    public BookingService(
-            BookingRepository bookingRepository,
-            UserReplicaRepository userRepository,
-            GymClient gymClient,
-            ApplicationEventPublisher eventPublisher,
-            Clock clock) {
-        this.bookingRepository = bookingRepository;
-        this.userRepository = userRepository;
-        this.gymClient = gymClient;
-        this.eventPublisher = eventPublisher;
-        this.clock = clock;
-    }
 
     @Transactional(readOnly = true)
     public List<SlotAvailabilityResponse> getAvailability(Long gymId, LocalDate date) {
@@ -87,9 +76,18 @@ public class BookingService {
         UsuarioReplica user = findUser(oid);
         ScheduleInfo schedule = findSchedule(request.getScheduleId());
         LocalDate date = request.getDate();
+        LocalDate today = LocalDate.now(clock);
 
-        validateBookingDate(schedule, date);
-
+        if (date.isBefore(today)) {
+            throw new InvalidBookingDateException("date", "La fecha no puede ser anterior a hoy");
+        }
+        if (date.isAfter(today.plusDays(MAX_DAYS_AHEAD))) {
+            throw new InvalidBookingDateException("date",
+                    "Solo puedes reservar con hasta " + MAX_DAYS_AHEAD + " días de anticipación");
+        }
+        if (hasStarted(schedule, date)) {
+            throw new InvalidBookingDateException("scheduleId", "Este horario ya comenzó");
+        }
         if (bookingRepository.existsByHorarioIdAndFechaAndActivaTrue(schedule.getId(), date)) {
             throw new SlotAlreadyBookedException();
         }
@@ -111,7 +109,7 @@ public class BookingService {
         }
 
         // Sent to RabbitMQ once the booking is committed (booking.created)
-        eventPublisher.publishEvent(toEvent(booking));
+        eventPublisher.publishEvent(BookingEvent.from(booking));
 
         return toResponse(booking, schedule);
     }
@@ -131,21 +129,23 @@ public class BookingService {
                 .map(this::findSchedule)
                 .collect(Collectors.toMap(ScheduleInfo::getId, schedule -> schedule));
 
-        // Oldest first: by date, and by start time within the same date
-        bookings.sort((first, second) -> compareByDateAndTime(first, second, schedulesById));
+        // The query already orders by date; within the same date, order by start time
+        bookings.sort((first, second) -> {
+            if (!first.getFecha().equals(second.getFecha())) {
+                return first.getFecha().compareTo(second.getFecha());
+            }
+            LocalTime firstStart = schedulesById.get(first.getHorarioId()).getStartTime();
+            LocalTime secondStart = schedulesById.get(second.getHorarioId()).getStartTime();
+            return firstStart.compareTo(secondStart);
+        });
 
-        // Upcoming keeps that order (soonest first)
-        List<Reserva> upcoming = bookings.stream()
-                .filter(booking -> isUpcoming(booking, today))
-                .toList();
+        // true: upcoming (confirmed and not in the past; today counts). false: the history
+        Map<Boolean, List<Reserva>> byUpcoming = bookings.stream()
+                .collect(Collectors.partitioningBy(booking ->
+                        booking.getEstado() == EstadoReserva.CONFIRMADA && !booking.getFecha().isBefore(today)));
 
-        // History is reversed so the newest comes first
-        List<Reserva> history = new ArrayList<>(bookings.stream()
-                .filter(booking -> !isUpcoming(booking, today))
-                .toList());
-        Collections.reverse(history);
-
-        return Stream.concat(upcoming.stream(), history.stream())
+        // Upcoming keeps the order (soonest first); the history is reversed (newest first)
+        return Stream.concat(byUpcoming.get(true).stream(), byUpcoming.get(false).reversed().stream())
                 .map(booking -> toResponse(booking, schedulesById.get(booking.getHorarioId())))
                 .toList();
     }
@@ -169,7 +169,7 @@ public class BookingService {
         booking.setActiva(null);
 
         // Sent to RabbitMQ once the cancellation is committed (booking.cancelled)
-        eventPublisher.publishEvent(toEvent(booking));
+        eventPublisher.publishEvent(BookingEvent.from(booking));
 
         return toResponse(booking, schedule);
     }
@@ -184,26 +184,6 @@ public class BookingService {
                 .orElseThrow(() -> new ScheduleNotFoundException(scheduleId));
     }
 
-    private void validateBookingDate(ScheduleInfo schedule, LocalDate date) {
-        LocalDate today = LocalDate.now(clock);
-
-        if (date.isBefore(today)) {
-            throw new InvalidBookingDateException("date", "La fecha no puede ser anterior a hoy");
-        }
-        if (date.isAfter(today.plusDays(MAX_DAYS_AHEAD))) {
-            throw new InvalidBookingDateException("date",
-                    "Solo puedes reservar con hasta " + MAX_DAYS_AHEAD + " días de anticipación");
-        }
-        if (hasStarted(schedule, date)) {
-            throw new InvalidBookingDateException("scheduleId", "Este horario ya comenzó");
-        }
-    }
-
-    // Confirmed and not in the past (today counts as upcoming)
-    private boolean isUpcoming(Reserva booking, LocalDate today) {
-        return booking.getEstado() == EstadoReserva.CONFIRMADA && !booking.getFecha().isBefore(today);
-    }
-
     // True when the slot's date has passed, or it is today and the slot already began
     private boolean hasStarted(ScheduleInfo schedule, LocalDate date) {
         LocalDate today = LocalDate.now(clock);
@@ -211,32 +191,10 @@ public class BookingService {
                 || (date.equals(today) && !schedule.getStartTime().isAfter(LocalTime.now(clock)));
     }
 
-    // Negative when "first" goes before "second", positive when after, 0 when they are equal
-    private int compareByDateAndTime(Reserva first, Reserva second, Map<Long, ScheduleInfo> schedulesById) {
-        int byDate = first.getFecha().compareTo(second.getFecha());
-        if (byDate != 0) {
-            return byDate;
-        }
-
-        LocalTime firstStart = schedulesById.get(first.getHorarioId()).getStartTime();
-        LocalTime secondStart = schedulesById.get(second.getHorarioId()).getStartTime();
-        return firstStart.compareTo(secondStart);
-    }
-
     // A confirmed booking can be canceled until its slot starts
     private BookingResponse toResponse(Reserva booking, ScheduleInfo schedule) {
         boolean cancellable = booking.getEstado() == EstadoReserva.CONFIRMADA
                 && !hasStarted(schedule, booking.getFecha());
         return BookingResponse.from(booking, schedule, cancellable);
-    }
-
-    private BookingEvent toEvent(Reserva booking) {
-        return new BookingEvent(
-                booking.getId(),
-                booking.getUsuarioId(),
-                booking.getGimnasioId(),
-                booking.getHorarioId(),
-                booking.getFecha(),
-                booking.getEstado().name());
     }
 }
