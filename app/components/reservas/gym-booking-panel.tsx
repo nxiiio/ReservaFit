@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router";
 import { createBooking, fetchAvailability, fetchGym } from "../../lib/api";
 import { getErrorMessage, getErrorStatus } from "../../lib/api-errors";
 import { acquireApiToken } from "../../lib/auth-token";
+import { requestNotificationsRefresh } from "../../lib/notification-events";
 import type { Gym, SlotAvailability } from "../../types/gym";
 import { addDaysIso, formatLongDate, formatTime, todayIso } from "../../lib/dates";
 
@@ -68,6 +69,7 @@ export function GymBookingPanel({ gymId }: { gymId: string }) {
       const token = await acquireApiToken(instance, account);
       if (!token) return;
       await createBooking(token, { scheduleId: selectedId, date });
+      requestNotificationsRefresh();
       navigate("/mis-reservas", { state: { justBooked: true } });
     } catch (err) {
       console.error(err);

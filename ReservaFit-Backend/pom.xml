@@ -19,6 +19,7 @@
 		<module>ms-usuarios</module>
 		<module>ms-gimnasios</module>
 		<module>ms-reservas</module>
+		<module>ms-notificaciones</module>
 	</modules>
 
 	<properties>

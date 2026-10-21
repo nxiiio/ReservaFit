@@ -3,6 +3,7 @@ import { useMsal } from "@azure/msal-react";
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { Brand } from "../landing/brand";
+import { NotificationBell } from "./notification-bell";
 
 const activeLink = "border-b-2 border-ink py-1 font-semibold";
 const idleLink = "py-1 text-muted transition-colors hover:text-ink";
@@ -47,32 +48,35 @@ export function AppNav({ userName }: { userName: string | null }) {
             Mis reservas
           </NavLink>
         </div>
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-label="Menú de usuario"
-            aria-expanded={menuOpen}
-            className="flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-line/60 text-ink transition-colors hover:bg-line"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" strokeLinecap="round" />
-            </svg>
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-line bg-white p-2 text-sm shadow-lg">
-              {userName && <p className="truncate px-3 py-2 text-muted">{userName}</p>}
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={inProgress !== InteractionStatus.None}
-                className="w-full cursor-pointer rounded-md px-3 py-2 text-left font-semibold hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cerrar sesión
-              </button>
-            </div>
-          )}
+        <div className="flex items-center gap-3">
+          <NotificationBell />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Menú de usuario"
+              aria-expanded={menuOpen}
+              className="flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-line/60 text-ink transition-colors hover:bg-line"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" strokeLinecap="round" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 z-10 mt-2 w-56 rounded-lg border border-line bg-white p-2 text-sm shadow-lg">
+                {userName && <p className="truncate px-3 py-2 text-muted">{userName}</p>}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={inProgress !== InteractionStatus.None}
+                  className="w-full cursor-pointer rounded-md px-3 py-2 text-left font-semibold hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </nav>
     </header>

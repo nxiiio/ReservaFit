@@ -98,6 +98,9 @@ class BookingServiceTest {
         assertEquals(1L, created.getGymId());
         assertEquals(earlySlot.getId(), created.getScheduleId());
         assertEquals(TODAY.plusDays(2), created.getDate());
+        assertEquals("Fuerza Barrio Gym", created.getGymName());
+        assertEquals(LocalTime.of(7, 0), created.getStartTime());
+        assertEquals(LocalTime.of(8, 0), created.getEndTime());
         assertEquals("CONFIRMADA", created.getStatus());
 
         BookingEvent canceled = (BookingEvent) publishedEvents.get(1);

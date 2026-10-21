@@ -43,6 +43,12 @@ spring:
                 - Path=/api/reservas/**
               filters:
                 - RemoveRequestHeader=Origin
+            - id: notificaciones
+              uri: ${NOTIFICACIONES_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/notificaciones/**
+              filters:
+                - RemoveRequestHeader=Origin
 
 app:
   cors:

@@ -44,9 +44,10 @@ Backend (cada servicio en su propia terminal):
 docker compose up -d mysql rabbitmq     # MySQL (localhost:3306) y RabbitMQ (localhost:5672), desde la raíz del repo
 cd ReservaFit-Backend
 ./mvnw -pl api-gateway spring-boot:run  # http://localhost:8080, la URL que usa el frontend
-./mvnw -pl ms-gimnasios spring-boot:run # :8082 (antes que ms-reservas)
-./mvnw -pl ms-usuarios spring-boot:run  # :8081
-./mvnw -pl ms-reservas spring-boot:run  # :8083
+./mvnw -pl ms-gimnasios spring-boot:run      # :8082 (antes que ms-reservas)
+./mvnw -pl ms-notificaciones spring-boot:run # :8084 (antes que ms-reservas)
+./mvnw -pl ms-usuarios spring-boot:run       # :8081
+./mvnw -pl ms-reservas spring-boot:run       # :8083
 ./mvnw test                             # tests de ms-reservas, con H2 en memoria
 ```
 
@@ -56,6 +57,7 @@ cd ReservaFit-Backend
 | `ms-usuarios` | 8081 | `/api/usuarios/**` | `usuario` |
 | `ms-gimnasios` | 8082 | `/api/gimnasios/**` | `gimnasio`, `horario`, `reserva_gimnasio` |
 | `ms-reservas` | 8083 | `/api/reservas/**` y `/api/gimnasios/{id}/disponibilidad` | `reserva` |
+| `ms-notificaciones` | 8084 | `/api/notificaciones/**` | `notificacion` |
 | `rabbitmq` | 5672, panel en 15672 | Mensajes entre los servicios | (ninguna) |
 
 Los datos quedan guardados entre reinicios (`docker compose down -v` borra la base). `ms-gimnasios` carga los gimnasios desde su `data.sql` sin duplicarlos.
@@ -66,21 +68,22 @@ Ningún servicio lee tablas de otro. `ms-reservas` guarda solo reservas: cada un
 
 | Mensaje | Lo publica | Cuándo | Cola | Lo consume |
 | --- | --- | --- | --- | --- |
-| `booking.created` | `ms-reservas` | Al crear una reserva (`POST /api/reservas`) | `gimnasios.bookings` | `ms-gimnasios` → `reserva_gimnasio` |
-| `booking.cancelled` | `ms-reservas` | Al cancelar una reserva (`DELETE /api/reservas/{id}`) | `gimnasios.bookings` | `ms-gimnasios` → `reserva_gimnasio` |
+| `booking.created` | `ms-reservas` | Al crear una reserva (`POST /api/reservas`) | `gimnasios.bookings` y `notificaciones.bookings` | `ms-gimnasios` → `reserva_gimnasio`; `ms-notificaciones` → `notificacion` |
+| `booking.cancelled` | `ms-reservas` | Al cancelar una reserva (`DELETE /api/reservas/{id}`) | las mismas dos | los mismos dos |
 
-- Los mensajes van al exchange topic `reservafit.events`. La cola `gimnasios.bookings` recibe los mensajes cuya routing key calza con su binding `booking.*`.
+- Los mensajes van al exchange topic `reservafit.events`. Las colas `gimnasios.bookings` y `notificaciones.bookings` tienen el mismo binding `booking.*`, así que cada una recibe su propia copia de cada mensaje: `ms-reservas` publica una vez y no sabe cuántos servicios lo escuchan.
+- `ms-notificaciones` convierte cada mensaje en una notificación para el usuario ("Reservaste en Fuerza Barrio Gym el martes 21 de octubre a las 18:00"). La página la muestra en la campana de la barra de navegación, que consulta cada 30 segundos y también justo después de reservar o cancelar. Un mensaje repetido no duplica la notificación. Si `ms-notificaciones` está apagado, reservar sigue funcionando y los mensajes esperan en su cola hasta que vuelve.
 - Las reservas se envían recién cuando quedan guardadas en la base de datos (después del commit), así que una reserva rechazada no genera mensaje. `ms-gimnasios` guarda cada una en `reserva_gimnasio` (con el mismo id de la reserva, así que la cancelación reemplaza la fila) y lo deja en su log junto con cuántas reservas confirmadas tiene el gimnasio.
-- Si `ms-gimnasios` falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a la DLQ `gimnasios.bookings.dlq` a través del exchange `reservafit.dlx`, donde queda guardado. Por ejemplo, una reserva para un gimnasio que no existe termina en `gimnasios.bookings.dlq`.
+- Si el servicio que consume falla al procesar un mensaje, lo reintenta 3 veces (a 1, 2 y 4 segundos). Si sigue fallando, lo escribe en el log y RabbitMQ lo mueve a la DLQ de su cola (`gimnasios.bookings.dlq` o `notificaciones.bookings.dlq`) a través del exchange `reservafit.dlx`, donde queda guardado. Por ejemplo, una reserva para un gimnasio que no existe termina en `gimnasios.bookings.dlq`.
 - Si un mensaje no calza con ninguna cola, o RabbitMQ no lo confirma, `ms-reservas` lo escribe en su log.
 - Los logs salen por consola y en `logs/<servicio>.log`.
 - El panel de RabbitMQ está en http://localhost:15672 (usuario y clave `reservafit`). Ahí se ven las colas, las DLQ y se pueden publicar mensajes de prueba.
-- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en `ms-reservas` y en `ms-gimnasios`.
-- La cola la crea el servicio que la consume (`ms-gimnasios`). Al levantar con `./mvnw`, arranca `ms-gimnasios` antes que `ms-reservas` (que además le pide los horarios). `compose.yaml` ya respeta ese orden.
+- Cada servicio tiene su propio paquete `messaging/` con sus nombres (`RabbitNames`), sus clases de mensaje y su configuración (`RabbitConfig`). Los servicios no comparten código: el acuerdo entre ellos son los nombres de las colas y los campos del JSON, así que un cambio en un mensaje hay que hacerlo en `ms-reservas`, `ms-gimnasios` y `ms-notificaciones`.
+- Cada cola la crea el servicio que la consume. Al levantar con `./mvnw`, arranca `ms-gimnasios` y `ms-notificaciones` antes que `ms-reservas` (que además le pide los horarios a `ms-gimnasios`). `compose.yaml` ya respeta ese orden.
 
 ## Docker
 
-Todo el stack (MySQL, RabbitMQ, los cuatro servicios del backend y el frontend) se levanta con Docker Compose, sin instalar Node ni Java. Necesitas Docker Desktop (o Docker Engine con Compose v2).
+Todo el stack (MySQL, RabbitMQ, los cinco servicios del backend y el frontend) se levanta con Docker Compose, sin instalar Node ni Java. Necesitas Docker Desktop (o Docker Engine con Compose v2).
 
 1. Crea el archivo de variables: copia `.env.example` a `.env` y completa los valores. Si ya tienes un `.env` para `pnpm dev`, sirve tal cual: las variables `VITE_*` son las mismas.
 2. Construye y levanta los servicios:
@@ -95,7 +98,7 @@ Todo el stack (MySQL, RabbitMQ, los cuatro servicios del backend y el frontend) 
 | --- | --- | --- |
 | `frontend` | http://localhost:5173 | nginx sirviendo el build estático de la SPA (`Dockerfile`) |
 | `api-gateway` | http://localhost:8080 | Spring Boot sobre JRE 25 (`ReservaFit-Backend/Dockerfile`, `MODULE=api-gateway`) |
-| `ms-usuarios`, `ms-gimnasios`, `ms-reservas` | solo dentro de la red de Compose | Misma imagen base, un `MODULE` distinto cada uno |
+| `ms-usuarios`, `ms-gimnasios`, `ms-reservas`, `ms-notificaciones` | solo dentro de la red de Compose | Misma imagen base, un `MODULE` distinto cada uno |
 | `mysql` | `localhost:3306` | MySQL 8.4, con los datos en el volumen `mysql-data` |
 | `rabbitmq` | `localhost:5672`, panel en http://localhost:15672 | RabbitMQ 4 con el plugin de administración |
 
@@ -162,6 +165,14 @@ URL base: `http://localhost:8080`. Todo requiere un token `Bearer`, salvo el cat
 | GET | `/api/reservas/mias` | Reservas del usuario actual, primero las próximas |
 | DELETE | `/api/reservas/{id}` | Cancela una reserva (409 si ya estaba cancelada o el horario ya comenzó) |
 
+### Notificaciones — `/api/notificaciones` (requiere token)
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/notificaciones` | Notificaciones del usuario actual, las más nuevas primero |
+| PUT | `/api/notificaciones/{id}/leida` | Marca una como leída (404 si no es del usuario) |
+| PUT | `/api/notificaciones/leidas` | Marca todas como leídas (204) |
+
 Las fechas viajan como strings `"YYYY-MM-DD"`. Los errores se devuelven como un mapa `campo → mensaje`.
 
 ## Estructura del proyecto
@@ -172,9 +183,10 @@ app/                    Rutas, componentes, lib y tipos de React Router
   routes/               layout, login, reservas, gimnasios/:id, mis-reservas
 ReservaFit-Backend/     proyecto Maven multimódulo (pom.xml padre)
   api-gateway/          rutas en application.yaml, CORS en config/
-  ms-usuarios/          controller, service, model, dto, config, exception, messaging
+  ms-usuarios/          controller, service, model, dto, config, exception
   ms-gimnasios/         ídem, más data.sql (datos iniciales)
-  ms-reservas/          ídem, más tests
+  ms-reservas/          ídem, más messaging, client (OpenFeign) y tests
+  ms-notificaciones/    ídem, más messaging (consume las reservas)
   Dockerfile            imagen de cualquier módulo (build arg MODULE; Maven + JRE 25)
 Dockerfile              imagen del frontend (build con pnpm + nginx)
 compose.yaml            levanta MySQL, RabbitMQ, los microservicios y el frontend

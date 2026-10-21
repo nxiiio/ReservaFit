@@ -16,6 +16,7 @@ COPY api-gateway/pom.xml api-gateway/
 COPY ms-usuarios/pom.xml ms-usuarios/
 COPY ms-gimnasios/pom.xml ms-gimnasios/
 COPY ms-reservas/pom.xml ms-reservas/
+COPY ms-notificaciones/pom.xml ms-notificaciones/
 RUN test -n "$MODULE" || { echo "Build arg MODULE is required, e.g. ms-reservas" >&2; exit 1; }
 RUN mvn -B -ntp -pl "$MODULE" -am dependency:go-offline
 

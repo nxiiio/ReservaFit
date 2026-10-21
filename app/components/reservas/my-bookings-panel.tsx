@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router";
 import { cancelBooking, fetchMyBookings } from "../../lib/api";
 import { getErrorMessage } from "../../lib/api-errors";
 import { acquireApiToken } from "../../lib/auth-token";
+import { requestNotificationsRefresh } from "../../lib/notification-events";
 import type { Booking } from "../../types/booking";
 import { formatLongDate, formatTime, todayIso } from "../../lib/dates";
 
@@ -71,6 +72,7 @@ export function MyBookingsPanel() {
       const token = await acquireApiToken(instance, account);
       if (!token) return;
       const updated = await cancelBooking(token, id);
+      requestNotificationsRefresh();
       setState((current) =>
         current.status === "ready"
           ? { status: "ready", bookings: current.bookings.map((b) => (b.id === id ? updated : b)) }

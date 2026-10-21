@@ -104,7 +104,7 @@ public class BookingService {
         }
 
         // Sent to RabbitMQ once the booking is committed (booking.created)
-        eventPublisher.publishEvent(BookingEvent.from(booking));
+        eventPublisher.publishEvent(BookingEvent.from(booking, schedule));
 
         return toResponse(booking, schedule);
     }
@@ -163,7 +163,7 @@ public class BookingService {
         booking.setActiva(null);
 
         // Sent to RabbitMQ once the cancellation is committed (booking.cancelled)
-        eventPublisher.publishEvent(BookingEvent.from(booking));
+        eventPublisher.publishEvent(BookingEvent.from(booking, schedule));
 
         return toResponse(booking, schedule);
     }

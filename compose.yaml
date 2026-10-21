@@ -103,8 +103,9 @@ services:
       <<: *backend-env
       # Asks ms-gimnasios for the schedules over HTTP
       GIMNASIOS_URL: http://ms-gimnasios:8082
-    # Needs ms-gimnasios to answer, and publishes the bookings into the queue that
-    # ms-gimnasios creates, so it starts after it. (depends_on replaces the shared one, so it repeats it.)
+    # Needs ms-gimnasios to answer, and publishes the bookings into the queues that
+    # ms-gimnasios and ms-notificaciones create, so it starts after both.
+    # (depends_on replaces the shared one, so it repeats it.)
     depends_on:
       mysql:
         condition: service_healthy
@@ -112,9 +113,25 @@ services:
         condition: service_healthy
       ms-gimnasios:
         condition: service_healthy
+      ms-notificaciones:
+        condition: service_healthy
     healthcheck:
       # Every endpoint but availability needs a token, so any HTTP answer means it is serving
       test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8083/api/reservas/mias"]
+      interval: 10s
+      timeout: 3s
+      start_period: 45s
+      retries: 6
+
+  ms-notificaciones:
+    <<: *backend-service
+    build:
+      context: ./ReservaFit-Backend
+      args:
+        MODULE: ms-notificaciones
+    healthcheck:
+      # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8084/api/notificaciones"]
       interval: 10s
       timeout: 3s
       start_period: 45s
@@ -129,6 +146,7 @@ services:
       USUARIOS_URL: http://ms-usuarios:8081
       GIMNASIOS_URL: http://ms-gimnasios:8082
       RESERVAS_URL: http://ms-reservas:8083
+      NOTIFICACIONES_URL: http://ms-notificaciones:8084
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173}}
       SPRING_OUTPUT_ANSI_ENABLED: never
     ports:
@@ -146,6 +164,8 @@ services:
       ms-gimnasios:
         condition: service_healthy
       ms-reservas:
+        condition: service_healthy
+      ms-notificaciones:
         condition: service_healthy
 
   frontend:

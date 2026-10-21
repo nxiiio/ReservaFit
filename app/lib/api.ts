@@ -1,6 +1,7 @@
 import axios from "axios";
 import type { Booking, CreateBookingBody } from "../types/booking";
 import type { Gym, SlotAvailability } from "../types/gym";
+import type { AppNotification } from "../types/notification";
 import type { UserProfile } from "../types/user";
 import type { ProfileData } from "./profile-schema";
 
@@ -57,4 +58,18 @@ export async function fetchMyBookings(token: string): Promise<Booking[]> {
 export async function cancelBooking(token: string, id: number): Promise<Booking> {
   const { data } = await api.delete<Booking>(`/api/reservas/${id}`, authHeader(token));
   return data;
+}
+
+export async function fetchNotifications(token: string): Promise<AppNotification[]> {
+  const { data } = await api.get<AppNotification[]>("/api/notificaciones", authHeader(token));
+  return data;
+}
+
+export async function markNotificationRead(token: string, id: number): Promise<AppNotification> {
+  const { data } = await api.put<AppNotification>(`/api/notificaciones/${id}/leida`, null, authHeader(token));
+  return data;
+}
+
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  await api.put("/api/notificaciones/leidas", null, authHeader(token));
 }
