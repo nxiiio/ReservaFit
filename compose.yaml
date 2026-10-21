@@ -39,7 +39,9 @@ services:
       # Keeps the data between restarts; docker compose down -v deletes it
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      # TCP on purpose: on first init the entrypoint runs a temporary socket-only server,
+      # so a socket ping ("-h localhost") reports healthy before port 3306 is open
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=tcp", "-uroot", "-proot"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -75,8 +77,8 @@ services:
       # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
       test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8081/api/usuarios/me"]
       interval: 10s
-      timeout: 3s
-      start_period: 45s
+      timeout: 5s
+      start_period: 120s
       retries: 6
 
   ms-gimnasios:
@@ -89,8 +91,8 @@ services:
       # Public and hits the database, so a 200 means the service is serving
       test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8082/api/gimnasios"]
       interval: 10s
-      timeout: 3s
-      start_period: 45s
+      timeout: 5s
+      start_period: 120s
       retries: 6
 
   ms-reservas:
@@ -119,8 +121,8 @@ services:
       # Every endpoint but availability needs a token, so any HTTP answer means it is serving
       test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8083/api/reservas/mias"]
       interval: 10s
-      timeout: 3s
-      start_period: 45s
+      timeout: 5s
+      start_period: 120s
       retries: 6
 
   ms-notificaciones:
@@ -133,8 +135,8 @@ services:
       # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
       test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8084/api/notificaciones"]
       interval: 10s
-      timeout: 3s
-      start_period: 45s
+      timeout: 5s
+      start_period: 120s
       retries: 6
 
   api-gateway:
@@ -155,8 +157,8 @@ services:
       # Goes through to ms-gimnasios, so a 200 means requests are being routed
       test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080/api/gimnasios"]
       interval: 10s
-      timeout: 3s
-      start_period: 30s
+      timeout: 5s
+      start_period: 120s
       retries: 6
     depends_on:
       ms-usuarios:
