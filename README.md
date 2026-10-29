@@ -136,6 +136,10 @@ docker compose logs -f ms-reservas    # logs de un servicio
 docker compose down                   # detiene y elimina los contenedores
 ```
 
+## Despliegue en AWS
+
+Para desplegar en AWS Academy Learner Lab (Terraform, una EC2 con Docker Compose y HTTPS con Caddy), ver [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Endpoints de la API
 
 URL base: `http://localhost:8080`. Todo requiere un token `Bearer`, salvo el catálogo de gimnasios.
@@ -190,6 +194,10 @@ ReservaFit-Backend/     proyecto Maven multimódulo (pom.xml padre)
   Dockerfile            imagen de cualquier módulo (build arg MODULE; Maven + JRE 25)
 Dockerfile              imagen del frontend (build con pnpm + nginx)
 compose.yaml            levanta MySQL, RabbitMQ, los microservicios y el frontend
+compose.prod.yaml       stack de producción en la EC2 (imágenes de ECR, Caddy con HTTPS)
 docker/nginx.conf       configuración de nginx para la SPA
+docker/Caddyfile        entrada pública en producción: /api/* al gateway, el resto a la SPA
+infra/                  Terraform para AWS Learner Lab (EC2, Elastic IP, ECR)
+scripts/build-push.sh   construye y sube las imágenes de producción a ECR
 .env.example            plantilla de variables de entorno
 ```
