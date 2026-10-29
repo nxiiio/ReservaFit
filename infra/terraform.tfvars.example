@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. Generate each password with:
+#   openssl rand -hex 24
+domain            = "reservafit.duckdns.org"
+db_password       = ""
+rabbitmq_password = ""

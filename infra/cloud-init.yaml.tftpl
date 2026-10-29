@@ -1,0 +1,67 @@
+#cloud-config
+# Rendered by ec2.tf (templatefile). Runs once, on the instance's first boot.
+
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  # Lets Docker pull from ECR with the instance's LabRole, without docker login
+  - amazon-ecr-credential-helper
+
+# Headroom for the moment all five JVMs start at once on 4 GB of RAM
+swap:
+  filename: /swapfile
+  size: 2G
+  maxsize: 2G
+
+write_files:
+  - path: /opt/reservafit/compose.yaml
+    encoding: b64
+    content: ${compose_b64}
+  - path: /opt/reservafit/Caddyfile
+    encoding: b64
+    content: ${caddyfile_b64}
+  - path: /opt/reservafit/.env
+    permissions: "0600"
+    content: |
+      DOMAIN=${domain}
+      REGISTRY=${registry}
+      DB_PASSWORD=${db_password}
+      RABBITMQ_PASSWORD=${rabbitmq_password}
+  - path: /root/.docker/config.json
+    permissions: "0600"
+    content: |
+      {"credHelpers": {"${registry}": "ecr-login"}}
+  - path: /etc/systemd/system/reservafit.service
+    content: |
+      # Starts (or updates) the stack on every boot; `systemctl restart reservafit` redeploys
+      # after scripts/build-push.sh pushed new images. Containers also restart on their own
+      # (restart: unless-stopped); this unit pulls new images and starts what is missing.
+      [Unit]
+      Description=ReservaFit (docker compose)
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+      # Keep retrying: the images may not be in ECR yet on the first boot
+      StartLimitIntervalSec=0
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/reservafit
+      Environment=DOCKER_CONFIG=/root/.docker
+      ExecStart=/usr/bin/docker compose up -d --pull always --remove-orphans
+      Restart=on-failure
+      RestartSec=30
+      # up -d waits for the healthchecks of each dependency before starting the next one
+      TimeoutStartSec=15min
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable --now docker
+  - systemctl daemon-reload
+  - systemctl enable reservafit.service
+  # --no-block: the first start can take minutes (and retries until the images exist)
+  - systemctl start --no-block reservafit.service

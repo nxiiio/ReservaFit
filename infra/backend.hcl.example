@@ -1,0 +1,7 @@
+# Copy to backend.hcl (git-ignored) and replace ACCOUNT_ID (aws sts get-caller-identity).
+# The bucket is created once by hand; see docs/DEPLOY.md.
+bucket       = "reservafit-tfstate-ACCOUNT_ID"
+key          = "reservafit/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

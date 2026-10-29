@@ -1,0 +1,10 @@
+# Terraform working files and state (the state holds the passwords)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Local values: passwords and the state bucket
+*.tfvars
+!*.tfvars.example
+backend.hcl
