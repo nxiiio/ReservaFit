@@ -19,8 +19,10 @@ coverage
 # Environment files: values reach the build as build args, never from disk
 .env*
 
-# Not part of the frontend image
+# Not part of the frontend image (infra/ also holds terraform.tfvars, with the passwords)
 ReservaFit-Backend
+infra
+scripts
 docs
 *.md
 compose*.yaml

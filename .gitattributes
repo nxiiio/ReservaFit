@@ -1,0 +1,6 @@
+# Files that run or are read on Linux (the EC2 instance, bash): a \r from a Windows
+# checkout would break them, e.g. DOMAIN=example.org\r in the instance's .env
+*.sh             text eol=lf
+*.tftpl          text eol=lf
+compose.prod.yaml text eol=lf
+docker/Caddyfile text eol=lf

@@ -1,0 +1,208 @@
+# Production stack for the AWS EC2 instance created by infra/ (see docs/DEPLOY.md).
+# cloud-init copies it to /opt/reservafit/compose.yaml next to the Caddyfile and a .env with
+# DOMAIN, REGISTRY, DB_PASSWORD and RABBITMQ_PASSWORD; reservafit.service runs
+# `docker compose up -d --pull always` on every boot.
+#
+# Differences with the development compose.yaml:
+# - Images come from ECR (scripts/build-push.sh builds and pushes them); nothing is built here.
+# - Only Caddy is published (80/443): it gets the Let's Encrypt certificate for DOMAIN and
+#   sends /api/* to the gateway and everything else to the SPA, so browser and API share
+#   one HTTPS origin. MySQL, RabbitMQ and the services are reachable only inside this network.
+# - Passwords come from .env, every container restarts on failure and on boot, and memory
+#   and log sizes are capped to fit a t3.medium (4 GB).
+name: reservafit
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend-service: &backend-service
+  restart: unless-stopped
+  logging: *logging
+  # The JVM sizes its heap from this limit (MaxRAMPercentage below), leaving the rest
+  # for metaspace, threads and the code cache
+  mem_limit: 600m
+  environment: &backend-env
+    DB_HOST: mysql
+    DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    RABBITMQ_HOST: rabbitmq
+    RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+    CORS_ALLOWED_ORIGINS: https://${DOMAIN:?DOMAIN is required}
+    JAVA_OPTS: -XX:MaxRAMPercentage=50.0
+    SPRING_OUTPUT_ANSI_ENABLED: never
+  depends_on:
+    mysql:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    # performance_schema alone takes ~200 MB that this MVP does not need
+    command: ["--performance-schema=OFF"]
+    environment:
+      MYSQL_DATABASE: reservafit_db
+      MYSQL_USER: reservafit
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      # Nothing uses root: the services connect as reservafit
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # mysqladmin ping exits 0 whenever the server answers, so the app user is enough
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --protocol=tcp -ureservafit -p\"$$MYSQL_PASSWORD\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    environment:
+      RABBITMQ_DEFAULT_USER: reservafit
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ms-usuarios:
+    <<: *backend-service
+    image: ${REGISTRY:?REGISTRY is required}/reservafit/ms-usuarios:${TAG:-latest}
+    # Does not use RabbitMQ, so it only waits for MySQL
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8081/api/usuarios/me"]
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 6
+
+  ms-gimnasios:
+    <<: *backend-service
+    image: ${REGISTRY:?REGISTRY is required}/reservafit/ms-gimnasios:${TAG:-latest}
+    healthcheck:
+      # Public and hits the database, so a 200 means the service is serving
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8082/api/gimnasios"]
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 6
+
+  ms-notificaciones:
+    <<: *backend-service
+    image: ${REGISTRY:?REGISTRY is required}/reservafit/ms-notificaciones:${TAG:-latest}
+    healthcheck:
+      # Every endpoint needs a token, so any HTTP answer (a 401) means it is serving
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8084/api/notificaciones"]
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 6
+
+  ms-reservas:
+    <<: *backend-service
+    image: ${REGISTRY:?REGISTRY is required}/reservafit/ms-reservas:${TAG:-latest}
+    environment:
+      <<: *backend-env
+      # Asks ms-gimnasios for the schedules over HTTP
+      GIMNASIOS_URL: http://ms-gimnasios:8082
+    # Publishes into the queues ms-gimnasios and ms-notificaciones declare, so it starts
+    # after both (depends_on replaces the shared one, so it repeats it)
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ms-gimnasios:
+        condition: service_healthy
+      ms-notificaciones:
+        condition: service_healthy
+    healthcheck:
+      # Every endpoint but availability needs a token, so any HTTP answer means it is serving
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8083/api/reservas/mias"]
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 6
+
+  api-gateway:
+    image: ${REGISTRY:?REGISTRY is required}/reservafit/api-gateway:${TAG:-latest}
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 600m
+    environment:
+      USUARIOS_URL: http://ms-usuarios:8081
+      GIMNASIOS_URL: http://ms-gimnasios:8082
+      RESERVAS_URL: http://ms-reservas:8083
+      NOTIFICACIONES_URL: http://ms-notificaciones:8084
+      CORS_ALLOWED_ORIGINS: https://${DOMAIN:?DOMAIN is required}
+      JAVA_OPTS: -XX:MaxRAMPercentage=50.0
+      SPRING_OUTPUT_ANSI_ENABLED: never
+    healthcheck:
+      # Goes through to ms-gimnasios, so a 200 means requests are being routed
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8080/api/gimnasios"]
+      interval: 10s
+      timeout: 5s
+      start_period: 180s
+      retries: 6
+    depends_on:
+      ms-usuarios:
+        condition: service_healthy
+      ms-gimnasios:
+        condition: service_healthy
+      ms-reservas:
+        condition: service_healthy
+      ms-notificaciones:
+        condition: service_healthy
+
+  frontend:
+    # Built by scripts/build-push.sh with VITE_API_BASE_URL and VITE_AZURE_REDIRECT_URI
+    # set to https://DOMAIN
+    image: ${REGISTRY:?REGISTRY is required}/reservafit/frontend:${TAG:-latest}
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 64m
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 128m
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    ports:
+      - "80:80"       # Let's Encrypt HTTP challenge and the redirect to HTTPS
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates: keeping them avoids asking Let's Encrypt again on every restart
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+  rabbitmq-data:
+  caddy-data:
+  caddy-config:

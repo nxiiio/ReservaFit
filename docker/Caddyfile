@@ -1,0 +1,14 @@
+# Public entry point in production (compose.prod.yaml). Caddy gets and renews the
+# Let's Encrypt certificate for DOMAIN on its own, and redirects HTTP to HTTPS.
+# The SPA and the API share this origin: /api/* goes to the gateway, the rest to nginx.
+{$DOMAIN} {
+	header Strict-Transport-Security "max-age=31536000"
+
+	handle /api/* {
+		reverse_proxy api-gateway:8080
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
